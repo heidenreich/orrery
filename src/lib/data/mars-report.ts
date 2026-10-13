@@ -1,5 +1,5 @@
 // Latest Curiosity REMS entry seen in the NASA feed, checked 2026-10-13.
-// Shown when the live feed can't be reached. Only the fields visible in that check are filled in.
+// Shown when the live feed can't be reached.
 
 export interface MarsReport {
   sol: number;
@@ -29,10 +29,10 @@ export const STORED_MARS_REPORT: MarsReport = {
   earthDate: '2026-08-25',
   ls: 341,
   month: 12,
-  minTemp: null,
-  maxTemp: null,
-  pressure: null,
-  sunrise: null,
-  sunset: null,
-  opacity: null
+  minTemp: -71,
+  maxTemp: -5,
+  pressure: 777,
+  sunrise: '06:46',
+  sunset: '18:51',
+  opacity: 'Sunny'
 };

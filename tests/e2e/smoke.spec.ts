@@ -49,9 +49,9 @@ test('shows live REMS weather and logs the fetch', async ({ page }) => {
   await page.getByRole('button', { name: 'Mars', exact: true }).evaluate((el: HTMLElement) => el.click());
 
   await expect(page.getByTestId('weather-source')).toHaveText("Fetched just now from NASA's REMS feed.");
-  await expect(panel(page)).toContainText('-78 °C to -4 °C');
-  await expect(panel(page)).toContainText('862 Pa');
-  await expect(panel(page)).toContainText('05:35–17:41');
+  await expect(panel(page)).toContainText('-71 °C to -5 °C');
+  await expect(panel(page)).toContainText('777 Pa');
+  await expect(panel(page)).toContainText('06:46–18:51');
   expect(logs[0]).toMatch(/^\[weather\] GET https:\/\/mars\.nasa\.gov/);
   expect(logs.some((l) => l.includes('HTTP 200'))).toBe(true);
   expect(logs.some((l) => l.includes('live report: sol 4995'))).toBe(true);

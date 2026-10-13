@@ -1,5 +1,5 @@
 {
-  "_note": "Constructed sample, not a recorded response. id, terrestrial_date, sol, ls and season match the live feed as seen on 2026-10-13; the other fields and values are assumed. Replace with a recorded response.",
+  "_note": "soles[0] is the newest entry from the live feed, transcribed from the browser console on 2026-10-13 (the feed held 4745 sols). soles[1] is constructed to cover missing readings.",
   "descriptions": {},
   "soles": [
     {
@@ -8,19 +8,19 @@
       "sol": "4995",
       "ls": "341",
       "season": "Month 12",
-      "min_temp": "-78",
-      "max_temp": "-4",
-      "pressure": "862",
+      "min_temp": "-71",
+      "max_temp": "-5",
+      "pressure": "777",
       "pressure_string": "Higher",
       "abs_humidity": "--",
       "wind_speed": "--",
       "wind_direction": "--",
       "atmo_opacity": "Sunny",
-      "sunrise": "05:35",
-      "sunset": "17:41",
+      "sunrise": "06:46",
+      "sunset": "18:51",
       "local_uv_irradiance_index": "Moderate",
-      "min_gts_temp": "-85",
-      "max_gts_temp": "6"
+      "min_gts_temp": "-84",
+      "max_gts_temp": "4"
     },
     {
       "id": "4745",
@@ -36,8 +36,8 @@
       "wind_speed": "--",
       "wind_direction": "--",
       "atmo_opacity": "--",
-      "sunrise": "05:36",
-      "sunset": "17:41",
+      "sunrise": "06:47",
+      "sunset": "18:51",
       "local_uv_irradiance_index": "--",
       "min_gts_temp": "--",
       "max_gts_temp": "--"

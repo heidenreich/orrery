@@ -1,7 +1,6 @@
 // Parser for NASA's Curiosity REMS weather feed.
-// The feed is undocumented: every value is a string, and missing readings appear as "--" or "".
-// Field names other than id, terrestrial_date, sol, ls and season are assumed from NASA's
-// Curiosity weather page and have not yet been checked against a full recorded response.
+// The feed is undocumented: every value is a string, and missing readings appear as "--".
+// It sends the whole mission history (4745 sols as of 2026-10-13), newest first.
 
 import type { MarsReport } from './mars-report';
 

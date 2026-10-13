@@ -81,10 +81,10 @@ request, HTTP status and headers, the newest raw entry, skipped entries,
 missing readings, and the reason for any fallback. Filter the console on
 `[weather]` to see them.
 
-Still unverified: whether NASA allows the cross-site request (CORS), and the
-names of fields beyond sol, date, `ls` and `season`. The sample in
-`src/lib/data/fixtures/rems-sample.json` is constructed, not recorded; replace
-it with a real response once one is captured.
+Checked on 2026-10-13 from the deployed site: NASA allows the cross-site
+request, and the field names match the parser. The feed sends the whole
+mission history (4745 sols), so each page load downloads all of it to show one
+day. `src/lib/data/fixtures/rems-sample.json` holds the real newest entry.
 
 Next: a scheduled GitHub Action that writes the latest report to
 `static/weather.json`, so the fallback stays current. NOAA's space weather feed

@@ -20,8 +20,8 @@ describe('parseSol', () => {
       ok: true,
       missing: [],
       report: {
-        sol: 4995, earthDate: '2026-08-25', ls: 341, month: 12, minTemp: -78, maxTemp: -4,
-        pressure: 862, sunrise: '05:35', sunset: '17:41', opacity: 'Sunny'
+        sol: 4995, earthDate: '2026-08-25', ls: 341, month: 12, minTemp: -71, maxTemp: -5,
+        pressure: 777, sunrise: '06:46', sunset: '18:51', opacity: 'Sunny'
       }
     });
   });
