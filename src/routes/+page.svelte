@@ -131,7 +131,7 @@
     {/if}
   </div>
   {#if scale === 'true'}
-    <p class="caption">True distances: the inner planets crowd close to the Sun. Zoom in to see them.</p>
+    <p class="caption">Distances to scale (planets are still drawn larger than life): the inner planets crowd close to the Sun. Zoom in to see them.</p>
   {/if}
   {#if atLimit}
     <div class="chip" role="status">Stopped at the year {year}: the clock runs from 1000 to 3000</div>
@@ -162,8 +162,18 @@
   <span class="grow"></span>
   <span class="ctl-label" id="scale-label">Distances</span>
   <div class="seg" role="group" aria-labelledby="scale-label">
-    <button class="ctl" aria-pressed={scale === 'compressed'} onclick={() => (scale = 'compressed')}>Compressed</button>
-    <button class="ctl" aria-pressed={scale === 'true'} onclick={() => (scale = 'true')}>True</button>
+    <button
+      class="ctl"
+      aria-pressed={scale === 'compressed'}
+      title="Distances squeezed so every planet fits on screen"
+      onclick={() => (scale = 'compressed')}>Compressed</button
+    >
+    <button
+      class="ctl"
+      aria-pressed={scale === 'true'}
+      title="Distances to scale. Planets are still drawn much larger than life"
+      onclick={() => (scale = 'true')}>To scale</button
+    >
   </div>
 </div>
 

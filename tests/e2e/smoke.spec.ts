@@ -351,3 +351,18 @@ test('a planet image that fails to load leaves the drawn texture', async ({ page
   await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
   expect(thrown).toEqual([]);
 });
+
+test('the distances toggle switches between compressed and to scale, and says planets stay enlarged', async ({ page }) => {
+  await page.goto('/');
+  const toScale = page.getByRole('button', { name: 'To scale', exact: true });
+  const compressed = page.getByRole('button', { name: 'Compressed', exact: true });
+  await expect(compressed).toHaveAttribute('aria-pressed', 'true');
+  await expect(toScale).toHaveAttribute('title', /larger than life/);
+
+  await toScale.click();
+  await expect(toScale).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText(/Distances to scale \(planets are still drawn larger than life\)/)).toBeVisible();
+
+  await compressed.click();
+  await expect(page.getByText(/Distances to scale/)).toHaveCount(0);
+});
