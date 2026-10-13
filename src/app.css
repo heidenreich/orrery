@@ -1,0 +1,92 @@
+/* Deep-space look, dark only by design. */
+:root {
+  --void: #070a14;
+  --panel: rgba(14, 19, 34, 0.84);
+  --panel-line: rgba(160, 176, 214, 0.18);
+  --ink: #e7eaf3;
+  --ink-dim: #9aa3bb;
+  --sun: #f0b65a;
+  --mars: #d9774a;
+  --warn: #f5c451;
+  --font-display: 'Syne', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-body: 'Figtree', 'Segoe UI', system-ui, sans-serif;
+  --font-data: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--void);
+  color: var(--ink);
+  font: 14px/1.4 var(--font-body);
+  overflow: hidden;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sun);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.surface {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+}
+
+.ctl {
+  font: 500 13px/1 var(--font-body);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--panel-line);
+  border-radius: 9px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.ctl:hover {
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.ctl[aria-pressed='true'] {
+  background: var(--sun);
+  color: var(--void);
+  border-color: var(--sun);
+}
+
+.eyebrow {
+  font: 600 11px/1 var(--font-body);
+  color: var(--ink-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+dl.stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 7px 14px;
+}
+
+dl.stats dt {
+  color: var(--ink-dim);
+  font-size: 12.5px;
+}
+
+dl.stats dd {
+  margin: 0;
+  font: 400 12.5px/1.35 var(--font-data);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
