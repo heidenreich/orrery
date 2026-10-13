@@ -26,6 +26,7 @@ npm run dev
 | `npm run check`    | Type-check the Svelte and TypeScript code           |
 | `npm test`         | Run the unit tests                                  |
 | `npm run test:e2e` | Build, serve and smoke-test the site in Chromium    |
+| `npm run test:build` | Check a finished build: base path, files, data |
 
 Run `npx playwright install chromium` once before the first `test:e2e`.
 
@@ -36,13 +37,21 @@ The npm 10.9 bundled with Node 22 crashes on this dependency tree, so
 
 ## Deploy
 
-`.github/workflows/ci.yml` runs the type-check, unit tests and browser smoke
-tests on every pull request and every push to `main`. Pushes to `main` also
-deploy the site to GitHub Pages at https://heidenreich.github.io/orrery/.
-Pages must be set to deploy from GitHub Actions (Settings → Pages → Source).
+`.github/workflows/ci.yml` has three jobs:
 
-The same workflow also runs every hour (at :17) to rebuild the site with fresh
-NASA and NOAA data; see [Data](#data). Each run's summary shows what it fetched.
+- **test** (pull requests and pushes to `main`): type-check, unit tests, and
+  browser smoke tests against an offline build.
+- **build** (pushes to `main` after the tests pass, the hourly schedule, and
+  manual runs): builds the real site with live data and the Pages base path,
+  then runs `npm run test:build` on it, without a browser.
+- **deploy**: publishes that build to https://heidenreich.github.io/orrery/.
+
+The hourly run (at :17) only refreshes the data: it skips the test job, so a
+flaky test or a failed browser install cannot stop the update. To refresh by
+hand, run the CI workflow from the Actions tab. Each build's summary shows what
+data it fetched.
+
+Pages must be set to deploy from GitHub Actions (Settings → Pages → Source).
 GitHub pauses scheduled workflows in a public repository after 60 days without
 activity; re-enable it from the Actions tab if that happens.
 

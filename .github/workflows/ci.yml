@@ -1,7 +1,9 @@
 name: CI
 
-# Branches are checked through their pull request, so each change runs once.
-# The hourly schedule rebuilds the site so its NASA and NOAA data stays current.
+# Pull requests and pushes to main run the full tests. The hourly schedule only refreshes the
+# NASA and NOAA data: it rebuilds, checks the built site and deploys, without re-running the
+# test suite on unchanged code, so a flaky test or a browser install can't stop the data update.
+# Run "CI" by hand from the Actions tab (workflow_dispatch) for the same data refresh on demand.
 on:
   push:
     branches: [main]
@@ -13,13 +15,15 @@ on:
 permissions:
   contents: read
 
-# Superseded pull request runs are cancelled; runs on main finish so a deploy is never cut off.
+# One run per branch at a time. A newer run replaces one that is still waiting to start. Once
+# started, runs on main are never cancelled, so a deploy is never cut off; pull request runs are.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  build:
+  test:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -37,7 +41,7 @@ jobs:
       - name: Install browser for smoke tests
         run: npx playwright install --with-deps chromium
 
-      # Builds and serves the site at the root path, then checks it in a real browser.
+      # Builds offline at the root path with a sample data file, then checks it in a real browser.
       - name: Smoke tests
         run: npm run test:e2e
 
@@ -49,22 +53,44 @@ jobs:
           path: test-results
           retention-days: 7
 
+  # Builds the site that is actually deployed: live data, Pages base path. Runs after the tests
+  # on pushes to main, and on its own for scheduled and manual runs.
+  build:
+    needs: test
+    if: >-
+      always() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
       - name: Configure Pages
         id: pages
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v6
 
       # Fetches NASA and NOAA data into data/weather.json. A feed that fails keeps the
       # last good copy from the live site instead of replacing it with nothing.
       - name: Build for Pages
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: npm run build
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
           PREVIOUS_DATA_URL: ${{ steps.pages.outputs.base_url }}/data/weather.json
 
+      # No browser: checks the base path, that every referenced file exists, and that the data
+      # file passes the same validator the page uses.
+      - name: Check the built site
+        run: npm run test:build
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+
       - name: Show data summary
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           node -e '
             const d = require("./build/data/weather.json");
@@ -73,16 +99,14 @@ jobs:
             console.log(`Solar wind: ${d.solarWind.source}${w ? `, ${w.latest.speed} km/s at ${w.latest.time} from ${w.latest.source}, ${w.series.length} points` : ""}${d.solarWind.error ? ", error: " + d.solarWind.error : ""}`);
           ' | tee -a "$GITHUB_STEP_SUMMARY"
 
-
       - name: Upload site
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v5
         with:
           path: build
 
   deploy:
     needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: always() && needs.build.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       pages: write
