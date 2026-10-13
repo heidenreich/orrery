@@ -19,6 +19,11 @@ export interface MarsReport {
   sunset: string | null;
   /** Sky condition, e.g. "Sunny". */
   opacity: string | null;
+  /** Ground temperature, °C (REMS ground temperature sensor). */
+  minGroundTemp: number | null;
+  maxGroundTemp: number | null;
+  /** Local ultraviolet level as the feed words it, e.g. "Moderate". */
+  uvIndex: string | null;
 }
 
 /** When the stored report was copied from the feed. */
@@ -34,5 +39,8 @@ export const STORED_MARS_REPORT: MarsReport = {
   pressure: 777,
   sunrise: '06:46',
   sunset: '18:51',
-  opacity: 'Sunny'
+  opacity: 'Sunny',
+  minGroundTemp: -84,
+  maxGroundTemp: 4,
+  uvIndex: 'Moderate'
 };

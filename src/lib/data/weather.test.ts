@@ -36,7 +36,8 @@ describe('parseSol', () => {
       missing: [],
       report: {
         sol: 4995, earthDate: '2026-08-25', ls: 341, month: 12, minTemp: -71, maxTemp: -5,
-        pressure: 777, sunrise: '06:46', sunset: '18:51', opacity: 'Sunny'
+        pressure: 777, sunrise: '06:46', sunset: '18:51', opacity: 'Sunny',
+        minGroundTemp: -84, maxGroundTemp: 4, uvIndex: 'Moderate'
       }
     });
   });
@@ -44,7 +45,9 @@ describe('parseSol', () => {
   it('treats "--" as a missing reading and lists what is missing', () => {
     const r = parseSol(remsSample.soles[1]);
     expect(r.ok && r.report.minTemp).toBe(null);
-    expect(r.ok && r.missing).toEqual(['min_temp', 'max_temp', 'pressure', 'atmo_opacity']);
+    expect(r.ok && r.missing).toEqual([
+      'min_temp', 'max_temp', 'pressure', 'atmo_opacity', 'min_gts_temp', 'max_gts_temp', 'local_uv_irradiance_index'
+    ]);
   });
 
   it('rejects entries without a usable sol or date', () => {

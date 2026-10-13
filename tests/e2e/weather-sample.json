@@ -14,7 +14,10 @@
       "pressure": 777,
       "sunrise": "06:46",
       "sunset": "18:51",
-      "opacity": "Sunny"
+      "opacity": "Sunny",
+      "minGroundTemp": -84,
+      "maxGroundTemp": 4,
+      "uvIndex": "Moderate"
     },
     "history": [
       {

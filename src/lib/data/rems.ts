@@ -41,7 +41,10 @@ const OPTIONAL = {
   pressure: 'pressure',
   sunrise: 'sunrise',
   sunset: 'sunset',
-  opacity: 'atmo_opacity'
+  opacity: 'atmo_opacity',
+  minGroundTemp: 'min_gts_temp',
+  maxGroundTemp: 'max_gts_temp',
+  uvIndex: 'local_uv_irradiance_index'
 } as const;
 
 /** Turn one raw feed entry into a report. Sol and Earth date are required; everything else may be missing. */
@@ -63,7 +66,10 @@ export function parseSol(raw: RemsSol): ParseResult {
     pressure: num(raw.pressure),
     sunrise: text(raw.sunrise),
     sunset: text(raw.sunset),
-    opacity: text(raw.atmo_opacity)
+    opacity: text(raw.atmo_opacity),
+    minGroundTemp: num(raw.min_gts_temp),
+    maxGroundTemp: num(raw.max_gts_temp),
+    uvIndex: text(raw.local_uv_irradiance_index)
   };
   const missing = Object.entries(OPTIONAL)
     .filter(([key]) => report[key as keyof typeof OPTIONAL] === null)

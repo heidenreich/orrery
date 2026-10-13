@@ -57,9 +57,26 @@ test('shows Mars weather from the data file and logs it', async ({ page }) => {
   await expect(panel(page)).toContainText('-71 °C to -5 °C');
   await expect(panel(page)).toContainText('777 Pa');
   await expect(panel(page)).toContainText('06:46–18:51');
+  await expect(panel(page)).toContainText(/Ground temperature\s*-84 °C to 4 °C/);
+  await expect(panel(page)).toContainText(/UV level\s*Moderate/);
   expect(logs[0]).toMatch(/^\[weather\] GET .*\/data\/weather\.json$/);
   await expect.poll(() => logs.join('\n')).toMatch(/\[weather\] data built 2026-10-13T13:00:00.000Z/);
   expect(upstream).toEqual([]);
+});
+
+test('handles a data file from before ground temperature and UV were added', async ({ page }) => {
+  const older = JSON.parse(sample);
+  for (const k of ['minGroundTemp', 'maxGroundTemp', 'uvIndex']) delete older.mars.report[k];
+  await page.unroute(DATA);
+  await page.route(DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(older) }));
+  const errors = trackErrors(page);
+  await page.goto('/');
+  await select(page, 'Mars');
+
+  await expect(panel(page)).toContainText('-71 °C to -5 °C');
+  await expect(panel(page)).not.toContainText('Ground temperature');
+  await expect(panel(page)).not.toContainText('UV level');
+  expect(errors).toEqual([]);
 });
 
 test('shows live solar wind on the Sun panel', async ({ page }) => {

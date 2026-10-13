@@ -19,6 +19,8 @@
 
   const report = $derived(weather?.mars.report ?? STORED_MARS_REPORT);
   const fmtTemp = (c: number) => `${Math.round(c)} °C`;
+  // Show the feed's wording in sentence case, with any underscores as spaces.
+  const uvText = (s: string) => { const t = s.replace(/_/g, ' ').toLowerCase(); return t[0].toUpperCase() + t.slice(1); };
 
   function ago(iso: string) {
     const min = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
@@ -94,6 +96,12 @@
           {#if report.pressure !== null}<dt>Pressure</dt><dd>{report.pressure.toLocaleString('en-US')} Pa</dd>{/if}
           {#if report.sunrise && report.sunset}<dt>Daylight</dt><dd>{report.sunrise}–{report.sunset}</dd>{/if}
           {#if report.opacity}<dt>Sky</dt><dd>{report.opacity}</dd>{/if}
+          <!-- Loose != null checks: data files built before these fields existed leave them undefined. -->
+          {#if report.minGroundTemp != null || report.maxGroundTemp != null}
+            <dt>Ground temperature</dt>
+            <dd>{report.minGroundTemp != null ? fmtTemp(report.minGroundTemp) : '?'} to {report.maxGroundTemp != null ? fmtTemp(report.maxGroundTemp) : '?'}</dd>
+          {/if}
+          {#if report.uvIndex}<dt>UV level</dt><dd>{uvText(report.uvIndex)}</dd>{/if}
           {#if report.ls !== null || report.month !== null}
             <dt>Season then</dt>
             <dd>{[report.ls !== null ? `Ls ${report.ls}°` : '', report.month !== null ? `month ${report.month}` : ''].filter(Boolean).join(', ')}</dd>
