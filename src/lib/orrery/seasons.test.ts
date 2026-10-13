@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanetId } from './bodies';
-import { axialTilt, seasons, sunGeometry, sunlight } from './seasons';
+import { axialTilt, northSeason, seasons, sunGeometry, sunlight } from './seasons';
 
 const at = (iso: string) => Date.parse(iso);
 const J2000 = at('2000-01-01T12:00:00Z');
@@ -74,5 +74,17 @@ describe('sunlight', () => {
     // 14.39 with today's 1361 W/m²; older sources say 14.46 because they used 1367.
     expect(m.max / 1000).toBeCloseTo(14.39, 1);
     expect(sunlight('neptune', J2000).now).toBeCloseTo(1.5, 1);
+  });
+});
+
+describe('northSeason', () => {
+  it('agrees with the full season calculation, and is null for planets without seasons', () => {
+    const t = at('2026-10-13T12:00:00Z');
+    for (const id of ['earth', 'mars', 'saturn', 'uranus', 'neptune'] as const) {
+      const full = seasons(id, t);
+      expect(northSeason(id, t)).toBe(full.seasonal ? full.north : null);
+    }
+    expect(northSeason('earth', t)).toBe('autumn');
+    expect(northSeason('jupiter', t)).toBe(null);
   });
 });

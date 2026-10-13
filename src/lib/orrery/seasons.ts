@@ -123,6 +123,12 @@ export type Seasons =
       seasonDays: number;
     };
 
+/** The northern hemisphere's season, or null for planets tilted too little to have seasons. Cheap: no event search. */
+export function northSeason(id: PlanetId, ms: number): (typeof SEASONS)[number] | null {
+  if (axialTilt(id, ms) < MIN_SEASONAL_TILT) return null;
+  return SEASONS[Math.floor(sunGeometry(id, ms).ls / 90)];
+}
+
 export function seasons(id: PlanetId, ms: number): Seasons {
   const tilt = axialTilt(id, ms);
   if (tilt < MIN_SEASONAL_TILT) return { seasonal: false, tilt };

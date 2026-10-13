@@ -15,7 +15,7 @@ const ORBIT_SELECTED = 0xf0b65a;
 const AVOID_REFRESH_MS = 300;
 
 // When labels overlap, the earlier body in this list keeps its label.
-const LABEL_PRIORITY: BodyId[] = ['mars', 'earth', 'sun', 'jupiter', 'saturn', 'venus', 'mercury', 'uranus', 'neptune'];
+const LABEL_PRIORITY: BodyId[] = ['sun', 'earth', 'jupiter', 'saturn', 'mars', 'venus', 'mercury', 'uranus', 'neptune'];
 
 export type ScaleMode = 'compressed' | 'true';
 

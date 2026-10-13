@@ -5,8 +5,9 @@
   import { ago, celsius, km, lightTime, seasonWords } from '$lib/format';
   import { STORED_MARS_REPORT } from '$lib/data/mars-report';
   import type { WeatherData } from '$lib/data/weather-data';
-  import { bodyById, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
+  import { ALL_BODIES, bodyById, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { distance, length, marsSolDate } from '$lib/orrery/orbits';
+  import { northSeason } from '$lib/orrery/seasons';
 
   interface Props {
     selected: BodyId | null;
@@ -17,9 +18,10 @@
     /** The actual current time (ms), refreshed by the page, for "N min ago" text. */
     now: number;
     onclose: () => void;
+    onselect: (id: BodyId) => void;
   }
 
-  let { selected, simMs, positions, weather, now, onclose }: Props = $props();
+  let { selected, simMs, positions, weather, now, onclose, onselect }: Props = $props();
 
   const report = $derived(weather?.mars.report ?? STORED_MARS_REPORT);
   // Show the feed's wording in sentence case, with any underscores as spaces.
@@ -33,11 +35,30 @@
 
   const fmtAU = (au: number) => `${au.toFixed(au < 10 ? 3 : 2)} AU`;
 
-  // Distances for the selected body, or Mars on the overview.
-  const live = $derived.by(() => {
+  // One row per body for the overview: distance from Earth and what is happening there now.
+  const overview = $derived.by(() => {
     if (!positions || simMs === null) return [];
     const earth = positions.earth;
-    const id = selected ?? 'mars';
+    return ALL_BODIES.map((b) => {
+      if (b.id === 'sun') {
+        const wind = weather?.solarWind.summary?.latest.speed;
+        return { id: b.id, name: b.name, from: fmtAU(length(earth)), now: wind != null ? `Wind ${Math.round(wind)} km/s` : '—' };
+      }
+      const season = northSeason(b.id, simMs);
+      return {
+        id: b.id,
+        name: b.name,
+        from: b.id === 'earth' ? '—' : fmtAU(distance(positions[b.id], earth)),
+        now: season ? `Northern ${season}` : 'No seasons'
+      };
+    });
+  });
+
+  // Distances for the selected body.
+  const live = $derived.by(() => {
+    if (!positions || simMs === null || !selected) return [];
+    const earth = positions.earth;
+    const id = selected;
     if (id === 'sun') {
       const d = length(earth);
       return [['From Earth', `${fmtAU(d)} · ${km(d)}`], ['Sunlight takes', lightTime(d)]];
@@ -85,14 +106,26 @@
       </div>
     </header>
     <p>
-      Positions, distances, sunlight and seasons are calculated for the date shown. Mars shows the latest
-      weather report from NASA's Curiosity rover, and the Sun shows live solar wind.
+      Where every planet is, how far away, how much sunlight it gets and what season it is, for the date
+      shown. Two worlds have live data: the solar wind at the Sun, and the latest weather report from
+      NASA's Curiosity rover on Mars.
     </p>
-    <p class="hint">Choose from the World menu or click a planet. Drag to rotate, scroll or pinch to zoom.</p>
-    <div>
-      <p class="eyebrow section">Mars right now</p>
-      {@render stats(live)}
-    </div>
+    <table class="worlds" data-testid="worlds">
+      <caption class="eyebrow">Worlds right now</caption>
+      <thead>
+        <tr><th scope="col">World</th><th scope="col">From Earth</th><th scope="col">Now</th></tr>
+      </thead>
+      <tbody>
+        {#each overview as row (row.id)}
+          <tr>
+            <th scope="row"><button type="button" onclick={() => onselect(row.id)}>{row.name}</button></th>
+            <td>{row.from}</td>
+            <td>{row.now}</td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+    <p class="hint">Choose a world here, from the World menu, or by clicking it. Drag to rotate, scroll or pinch to zoom.</p>
   {:else}
     <header>
       <div>
@@ -233,6 +266,60 @@
 
   .section {
     margin-bottom: 8px;
+  }
+
+  .worlds {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .worlds caption {
+    text-align: left;
+    margin-bottom: 6px;
+  }
+
+  .worlds th,
+  .worlds td {
+    padding: 0;
+    text-align: left;
+    font-weight: 400;
+    border-top: 1px solid var(--panel-line);
+  }
+
+  .worlds thead th {
+    border-top: 0;
+    padding: 0 0 4px;
+    font-size: 11.5px;
+    color: var(--ink-dim);
+  }
+
+  .worlds td {
+    padding: 7px 0;
+    font: 400 12.5px/1.2 var(--font-data);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-dim);
+  }
+
+  .worlds td:last-child,
+  .worlds thead th:last-child {
+    text-align: right;
+    font-family: var(--font-body);
+  }
+
+  .worlds tbody th button {
+    width: 100%;
+    padding: 7px 8px 7px 0;
+    text-align: left;
+    font: 500 13.5px/1.2 var(--font-body);
+    color: var(--ink);
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .worlds tbody th button:hover {
+    color: var(--sun);
   }
 
   .hint {

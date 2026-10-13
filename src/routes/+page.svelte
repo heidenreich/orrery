@@ -96,7 +96,7 @@
 
 <svelte:head>
   <title>Solar System Orrery</title>
-  <meta name="description" content="Interactive 3D solar system with real planet positions and the latest Mars weather." />
+  <meta name="description" content="Interactive 3D solar system: real planet positions, distances, sunlight and seasons, with live solar wind and Mars weather." />
 </svelte:head>
 
 <svelte:window {onkeydown} />
@@ -138,7 +138,7 @@
   {/if}
 </div>
 
-<InfoPanel {selected} {simMs} {positions} {weather} {now} onclose={closePanel} />
+<InfoPanel {selected} {simMs} {positions} {weather} {now} onclose={closePanel} onselect={(id) => (selected = id)} />
 
 <div class="controls surface" role="toolbar" aria-label="Time and view controls" data-label-avoid>
   <select

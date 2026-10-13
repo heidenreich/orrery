@@ -36,17 +36,19 @@ function trackErrors(page: Page) {
 }
 
 const panel = (page: Page) => page.locator('aside.panel');
+/** The 3D scene's planet labels (the overview table has buttons with the same names). */
+const labels = (page: Page) => page.locator('.labels');
 const select = (page: Page, name: string) =>
   // Labels move every frame and hide when off screen (e.g. after zooming to another planet),
   // so find them even when hidden and click through the DOM.
-  page.getByRole('button', { name, exact: true, includeHidden: true }).evaluate((el: HTMLElement) => el.click());
+  labels(page).getByRole('button', { name, exact: true, includeHidden: true }).evaluate((el: HTMLElement) => el.click());
 
 test('renders the solar system and opens the Mars panel', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
 
   await expect(page.locator('.stage canvas')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
+  await expect(labels(page).getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
   await expect(panel(page)).toContainText('From Earth');
 
   await select(page, 'Mars');
@@ -165,7 +167,7 @@ test('falls back to the stored report when the data file is missing', async ({ p
 
 test('visible planet labels never overlap', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Earth', exact: true })).toBeVisible();
+  await expect(labels(page).getByRole('button', { name: 'Earth', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Pause' }).click();
 
   const boxes = await page.locator('.label:not([hidden])').evaluateAll((els) =>
@@ -288,7 +290,7 @@ test('planet labels stay clear of the header, panel and toolbar', async ({ page 
   for (const size of [{ width: 1400, height: 860 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(size);
     await page.goto('/');
-    await expect(page.getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
+    await expect(labels(page).getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Pause' }).click();
     await page.waitForTimeout(500);
     const overlaps = await page.evaluate(() => {
@@ -302,4 +304,17 @@ test('planet labels stay clear of the header, panel and toolbar', async ({ page 
     });
     expect(overlaps, `labels under page UI at ${size.width}px`).toEqual([]);
   }
+});
+
+test('the overview lists every world, and each row opens it', async ({ page }) => {
+  await page.goto('/');
+  const table = page.getByTestId('worlds');
+  await expect(table.locator('tbody tr')).toHaveCount(9);
+  await expect(table).toContainText(/Saturn\s*\d+\.\d+ AU\s*Northern (spring|summer|autumn|winter)/);
+  await expect(table).toContainText(/Jupiter\s*\d+\.\d+ AU\s*No seasons/);
+  await expect(table).toContainText(/Sun\s*\d\.\d+ AU\s*Wind \d+ km\/s/);
+  await expect(panel(page)).not.toContainText('Mars right now');
+
+  await table.getByRole('button', { name: 'Saturn' }).click();
+  await expect(panel(page).getByRole('heading', { name: 'Saturn' })).toBeFocused();
 });
