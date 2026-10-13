@@ -73,6 +73,13 @@
     return rows;
   });
 
+  // On phones the panel is a bottom sheet over the 3D view. The overview starts folded down to its
+  // heading so the solar system has the screen; picking a world opens it. (Wider screens ignore this.)
+  let folded = $state(true);
+  $effect(() => {
+    folded = selected === null;
+  });
+
   // Each time the selection changes: back to the top, and move focus to the new heading so
   // keyboard and screen reader users land on what they picked.
   let panel: HTMLElement;
@@ -98,13 +105,28 @@
   });
 </script>
 
-<aside class="panel surface" aria-label="Details" bind:this={panel} onscroll={checkMore} data-label-avoid>
+{#snippet fold(what: string)}
+  <button class="fold" type="button" aria-expanded={!folded} onclick={() => (folded = !folded)}>
+    {folded ? `Show ${what}` : 'Hide'}
+  </button>
+{/snippet}
+
+<aside
+  class="panel surface"
+  class:folded
+  aria-label="Details"
+  bind:this={panel}
+  onscroll={checkMore}
+  data-label-avoid
+  data-view-avoid
+>
   {#if !body}
     <header>
       <div>
         <p class="eyebrow">Solar system</p>
         <h2>Pick a world</h2>
       </div>
+      {@render fold('worlds')}
     </header>
     <p>
       Where every planet is, how far away, how much sunlight it gets and what season it is, for the date
@@ -137,7 +159,10 @@
         <p class="eyebrow">{body.kind}</p>
         <h2 tabindex="-1" bind:this={heading}>{body.name}</h2>
       </div>
-      <button class="close" aria-label="Close {body.name} and return to the overview" onclick={onclose}>×</button>
+      <div class="actions">
+        {@render fold('details')}
+        <button class="close" aria-label="Close {body.name} and return to the overview" onclick={onclose}>×</button>
+      </div>
     </header>
 
     {#if body.id === 'mars'}
@@ -349,6 +374,27 @@
     color: var(--ink);
   }
 
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Only phones fold the panel. */
+  .fold {
+    display: none;
+    background: none;
+    border: 1px solid var(--panel-line);
+    border-radius: 999px;
+    color: var(--ink);
+    font: 500 13px/1 var(--font-body);
+    padding: 9px 14px;
+    min-height: 36px;
+    cursor: pointer;
+    white-space: nowrap;
+    align-self: center;
+  }
+
   .close {
     background: none;
     border: 0;
@@ -434,6 +480,19 @@
   }
 
   @media (max-width: 640px) {
+    .fold {
+      display: block;
+    }
+
+    .panel.folded {
+      padding-bottom: 14px;
+      overflow: hidden;
+    }
+
+    .panel.folded > :not(header) {
+      display: none;
+    }
+
     .panel {
       top: auto;
       bottom: calc(132px + env(safe-area-inset-bottom, 0px));

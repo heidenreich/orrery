@@ -366,3 +366,38 @@ test('the distances toggle switches between compressed and to scale, and says pl
   await compressed.click();
   await expect(page.getByText(/Distances to scale/)).toHaveCount(0);
 });
+
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('the overview sheet starts folded, opens on request, and opens when a world is picked', async ({ page }) => {
+    const errors = trackErrors(page);
+    await page.goto('/');
+    const table = page.getByTestId('worlds');
+    await expect(panel(page).getByRole('heading', { name: 'Pick a world' })).toBeVisible();
+    await expect(table).toBeHidden();
+
+    const show = page.getByRole('button', { name: 'Show worlds' });
+    await expect(show).toHaveAttribute('aria-expanded', 'false');
+    await show.click();
+    await expect(table).toBeVisible();
+    await page.getByRole('button', { name: 'Hide' }).click();
+    await expect(table).toBeHidden();
+
+    await page.locator('select[name="world"]').selectOption({ label: 'Mars' });
+    await expect(panel(page)).toContainText('Curiosity weather report');
+    await page.getByRole('button', { name: 'Hide' }).click();
+    await expect(panel(page).getByText('Curiosity weather report')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Show details' })).toBeVisible();
+
+    await page.getByRole('button', { name: /^Close Mars/ }).click();
+    await expect(table).toBeHidden();
+    expect(errors).toEqual([]);
+  });
+});
+
+test('on wider screens the panel never folds', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('worlds')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show worlds' })).toBeHidden();
+});

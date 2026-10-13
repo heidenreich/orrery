@@ -17,9 +17,9 @@ const AVOID_REFRESH_MS = 300;
 const DEG = Math.PI / 180;
 /** Matches the CSS: at this width and below, the info panel becomes a bottom sheet. */
 const PHONE_MAX_WIDTH = 640;
-/** Width the info panel takes on the right on wider screens: 340 px plus its 16 px margin. */
-const PANEL_COLUMN = 356;
+const PHONE_BODY_SCALE = 1.7;
 const NEPTUNE_APHELION_AU = 30.4;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 // When labels overlap, the earlier body in this list keeps its label.
 const LABEL_PRIORITY: BodyId[] = ['sun', 'earth', 'jupiter', 'saturn', 'mars', 'venus', 'mercury', 'uranus', 'neptune'];
@@ -97,6 +97,9 @@ export class OrreryScene {
   private lastTick = 0;
   private lastOrbitMs: number | null = null;
   private lastMix = -1;
+  private sunGroup = new THREE.Group();
+  /** Bodies are drawn this much larger on phones, where the same view covers far fewer pixels. */
+  private bodyScale = 1;
   /** Fraction of the canvas width and height the info panel leaves uncovered (see resize()). */
   private free = { x: 1, y: 1 };
   private resizeObserver!: ResizeObserver;
@@ -152,7 +155,8 @@ export class OrreryScene {
       new THREE.MeshBasicMaterial({ color: 0xffcf7a })
     );
     this.sunMesh.userData.id = 'sun';
-    this.scene.add(this.sunMesh);
+    this.sunGroup.add(this.sunMesh);
+    this.scene.add(this.sunGroup);
     const glow = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: glowTexture(),
@@ -162,7 +166,7 @@ export class OrreryScene {
       })
     );
     glow.scale.set(SUN_SIZE * 7, SUN_SIZE * 7, 1);
-    this.scene.add(glow);
+    this.sunGroup.add(glow);
 
     this.addStars(rand);
     this.addBelt(rand);
@@ -176,6 +180,8 @@ export class OrreryScene {
     this.motionQuery.addEventListener('change', this.onMotionChange);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(opts.container);
+    // The info panel changes size as it opens, closes and fills; keep the view in the space it leaves.
+    for (const el of document.querySelectorAll('[data-view-avoid]')) this.resizeObserver.observe(el);
     this.resize();
   }
 
@@ -280,8 +286,8 @@ export class OrreryScene {
       m.opacity = on ? 0.8 : 0.35;
     }
     if (id === null) this.desiredDist = this.overviewDistance();
-    else if (id === 'sun') this.desiredDist = 16;
-    else this.desiredDist = this.node(id).size * 9 + 2.5;
+    else if (id === 'sun') this.desiredDist = 16 * this.bodyScale;
+    else this.desiredDist = this.closeUpDistance(this.node(id));
   }
 
   // Point each planet's spin axis along its IAU north pole, the same pole the panel's seasons and
@@ -291,6 +297,14 @@ export class OrreryScene {
     for (const n of this.nodes) {
       n.holder.quaternion.copy(poleQuaternion(n.planet.id as PlanetId, this.simMs));
     }
+  }
+
+  // Close enough to fill the view, but far enough that the planet and any rings fit across the free
+  // width, which on a phone held upright is narrow.
+  private closeUpDistance(n: PlanetNode) {
+    const radius = n.size * this.bodyScale * (n.ring ? RING_OUTER : 1);
+    const halfWidth = Math.tan((this.camera.fov * DEG) / 2) * this.camera.aspect * this.free.x;
+    return Math.max((n.size * 9 + 2.5) * this.bodyScale, (radius * 1.5) / halfWidth);
   }
 
   // Compressed, the overview frames the inner and middle planets. To scale, it backs off until
@@ -402,9 +416,27 @@ export class OrreryScene {
     this.camera.aspect = w / h;
     // Centre the view in the space the info panel leaves free: on phones it is a bottom sheet, so
     // the focus point sits higher up; wider, it is a column on the right, so it sits further left.
-    this.free = w <= PHONE_MAX_WIDTH ? { x: 1, y: 0.5 } : { x: (w - PANEL_COLUMN) / w, y: 1 };
-    this.camera.setViewOffset(w, h, ((1 - this.free.x) * w) / 2, ((1 - this.free.y) * h) / 2, w, h);
+    const phone = w <= PHONE_MAX_WIDTH;
+    const panel = document.querySelector('[data-view-avoid]')?.getBoundingClientRect();
+    const box = this.opts.container.getBoundingClientRect();
+    const free = !panel?.height
+      ? { x: 1, y: 1 }
+      : phone
+        ? { x: 1, y: clamp((panel.top - box.top) / h, 0.3, 1) }
+        : { x: clamp((panel.left - box.left) / w, 0.4, 1), y: 1 };
+    const changed = Math.abs(free.x - this.free.x) > 0.01 || Math.abs(free.y - this.free.y) > 0.01;
+    this.free = free;
+    this.camera.setViewOffset(w, h, ((1 - free.x) * w) / 2, ((1 - free.y) * h) / 2, w, h);
     this.camera.updateProjectionMatrix();
+
+    const scale = phone ? PHONE_BODY_SCALE : 1;
+    if (scale !== this.bodyScale) {
+      this.bodyScale = scale;
+      for (const n of this.nodes) n.holder.scale.setScalar(scale);
+      this.sunGroup.scale.setScalar(scale);
+    }
+    // Re-frame the overview when the free space changes (the phone sheet opening or closing).
+    if (changed && !this.selected) this.desiredDist = this.overviewDistance();
   }
 
   private onMotionChange = (e: MediaQueryListEvent) => {
@@ -555,7 +587,7 @@ export class OrreryScene {
       if (!el) continue;
       const isSun = id === SUN.id;
       const p = (isSun ? this.sunMesh.position : this.node(id).holder.position).clone();
-      p.y += (isSun ? SUN_SIZE : this.node(id).size) * 1.15;
+      p.y += (isSun ? SUN_SIZE : this.node(id).size) * this.bodyScale * 1.15;
       p.project(this.camera);
       const width = this.labelWidth(id, el);
       // Keep the whole label on screen, even when its planet sits at the edge.
