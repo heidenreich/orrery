@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import InfoPanel from '$lib/components/InfoPanel.svelte';
   import { resolve } from '$app/paths';
   import { loadWeather } from '$lib/data/weather';
   import type { WeatherData } from '$lib/data/weather-data';
   import Orrery from '$lib/components/Orrery.svelte';
-  import { planetPositions, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
-  import { marsSolDate, VALID_YEARS } from '$lib/orrery/orbits';
+  import { ALL_BODIES, bodyById, planetPositions, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
+  import { VALID_YEARS } from '$lib/orrery/orbits';
   import type { ScaleMode } from '$lib/orrery/scene';
   import { LIVE_TOLERANCE_MS, REAL_TIME } from '$lib/orrery/time';
 
@@ -49,6 +49,26 @@
     resetToNow++;
   }
 
+  /** "3 days", "5 months", "1.2 years" between the clock and now, when simulated. */
+  const offset = $derived.by(() => {
+    if (simMs === null || status === 'Live') return '';
+    const days = (simMs - now) / 86_400_000;
+    const abs = Math.abs(days);
+    if (abs < 1) return '';
+    const size = abs < 60 ? `${Math.round(abs)} days` : abs < 730 ? `${Math.round(abs / 30.44)} months` : `${(abs / 365.25).toFixed(1)} years`;
+    return days > 0 ? `${size} ahead` : `${size} ago`;
+  });
+
+  // One place that says what is selected, for screen readers.
+  const announcement = $derived(selected ? `${bodyById(selected).name} selected` : 'Overview');
+
+  let picker: HTMLSelectElement;
+  async function closePanel() {
+    selected = null;
+    await tick();
+    picker?.focus();
+  }
+
   onMount(() => {
     simMs = Date.now();
     // Seed positions so the panel has distances even if the 3D view never starts.
@@ -66,7 +86,7 @@
   });
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') selected = null;
+    if (e.key === 'Escape' && selected) closePanel();
     if (e.key === ' ' && e.target === document.body) {
       e.preventDefault();
       playing = !playing;
@@ -95,31 +115,47 @@
   }}
 />
 
-<div class="hud">
+<p class="sr-only" aria-live="polite">{announcement}</p>
+
+<div class="hud" data-label-avoid>
   <h1>Solar System <span>Orrery</span></h1>
   <div class="clock" data-testid="clock">
     {#if simMs !== null}
       <span class="when">
         {fmtDate.format(new Date(simMs))} · {fmtTime.format(new Date(simMs))} UTC
-        <span class="status" class:live={status === 'Live'} data-testid="clock-status">{status}</span>
+        <span class="status" class:live={status === 'Live'} class:sim={status !== 'Live'} data-testid="clock-status">{status}</span>
       </span>
-      <small>Mars Sol Date {Math.floor(marsSolDate(simMs)).toLocaleString('en-US')}</small>
+      {#if offset}<small data-testid="clock-offset">{offset} from today</small>{/if}
     {:else}
-      &nbsp;<small>&nbsp;</small>
+      &nbsp;
     {/if}
   </div>
+  {#if scale === 'true'}
+    <p class="caption">True distances: the inner planets crowd close to the Sun. Zoom in to see them.</p>
+  {/if}
   {#if outOfRange}
     <div class="chip">Outside {VALID_YEARS.from}–{VALID_YEARS.to}: positions are approximate</div>
   {/if}
 </div>
 
-<InfoPanel {selected} {simMs} {positions} {weather} {now} onclose={() => (selected = null)} />
+<InfoPanel {selected} {simMs} {positions} {weather} {now} onclose={closePanel} />
 
-<div class="controls surface" role="toolbar" aria-label="Time and view controls">
-  <button class="ctl" aria-pressed={playing} onclick={() => (playing = !playing)}>
+<div class="controls surface" role="toolbar" aria-label="Time and view controls" data-label-avoid>
+  <select
+    class="ctl"
+    aria-label="World"
+    bind:this={picker}
+    value={selected ?? ''}
+    onchange={(e) => (selected = (e.currentTarget.value || null) as BodyId | null)}
+  >
+    <option value="">Overview</option>
+    {#each ALL_BODIES as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
+  </select>
+  <button class="ctl play" onclick={() => (playing = !playing)}>
+    <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
     {playing ? 'Pause' : 'Play'}
   </button>
-  <select class="ctl" aria-label="Playback speed" bind:value={daysPerSec}>
+  <select class="ctl" aria-label="Playback speed" bind:value={daysPerSec} onchange={() => (playing = true)}>
     {#each SPEEDS as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
   </select>
   <button class="ctl" onclick={goLive} disabled={status === 'Live'}>Now</button>
@@ -129,7 +165,6 @@
     <button class="ctl" aria-pressed={scale === 'compressed'} onclick={() => (scale = 'compressed')}>Compressed</button>
     <button class="ctl" aria-pressed={scale === 'true'} onclick={() => (scale = 'true')}>True</button>
   </div>
-  <button class="ctl" onclick={() => (selected = null)}>Overview</button>
 </div>
 
 <style>
@@ -189,6 +224,28 @@
     border-radius: 50%;
     background: var(--live);
     vertical-align: 1px;
+  }
+
+  .status.sim {
+    color: var(--ink);
+    border-color: var(--sun);
+  }
+
+  .caption {
+    margin: 0;
+    max-width: 30ch;
+    font: 400 12.5px/1.4 var(--font-body);
+    color: var(--ink-dim);
+  }
+
+  .play {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .play span {
+    font-size: 0.8em;
   }
 
   .clock small {

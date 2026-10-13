@@ -51,8 +51,8 @@ test('renders the solar system and opens the Mars panel', async ({ page }) => {
 
   await select(page, 'Mars');
   await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
-  await expect(panel(page)).toContainText('Latest Curiosity weather report');
-  await expect(panel(page)).toContainText('Signal delay');
+  await expect(panel(page)).toContainText('Curiosity weather report');
+  await expect(panel(page)).toContainText('Radio signal takes');
 
   await page.keyboard.press('Escape');
   await expect(panel(page).getByRole('heading', { name: 'Pick a world' })).toBeVisible();
@@ -67,11 +67,11 @@ test('shows Mars weather from the data file and logs it', async ({ page }) => {
   await page.goto('/');
   await select(page, 'Mars');
 
-  await expect(page.getByTestId('weather-source')).toHaveText("From NASA's REMS feed, checked just now.");
-  await expect(panel(page)).toContainText('-71 °C to -5 °C');
+  await expect(page.getByTestId('weather-source')).toContainText("From NASA's REMS feed, checked just now.");
+  await expect(panel(page)).toContainText('−71 °C to −5 °C');
   await expect(panel(page)).toContainText('777 Pa');
   await expect(panel(page)).toContainText('06:46–18:51');
-  await expect(panel(page)).toContainText(/Ground temperature\s*-84 °C to 4 °C/);
+  await expect(panel(page)).toContainText(/Ground temperature\s*−84 °C to 4 °C/);
   await expect(panel(page)).toContainText(/UV level\s*Moderate/);
   expect(logs[0]).toMatch(/^\[weather\] GET .*\/data\/weather\.json$/);
   await expect.poll(() => logs.join('\n')).toMatch(/\[weather\] data built \d{4}-\d{2}-\d{2}T[\d:.]+Z/);
@@ -87,7 +87,7 @@ test('handles a data file from before ground temperature and UV were added', asy
   await page.goto('/');
   await select(page, 'Mars');
 
-  await expect(panel(page)).toContainText('-71 °C to -5 °C');
+  await expect(panel(page)).toContainText('−71 °C to −5 °C');
   await expect(panel(page)).not.toContainText('Ground temperature');
   await expect(panel(page)).not.toContainText('UV level');
   expect(errors).toEqual([]);
@@ -128,7 +128,7 @@ test('shows computed sunlight and seasons for each planet', async ({ page }) => 
   await expect(section).toContainText(/Next\s*Northern (spring|summer|autumn|winter) (equinox|solstice)/);
 
   await expect(section).toContainText(/Over its orbit\s*490–713 W\/m²/);
-  await expect(panel(page)).toContainText(/Season then\s*Ls 341°, month 12/);
+  await expect(panel(page)).toContainText(/Season then\s*late northern winter/);
 
   await select(page, 'Mercury');
   await expect(section).toContainText(/Over its orbit\s*6,249 W\/m² to 14\.4 kW\/m²/);
@@ -154,12 +154,13 @@ test('falls back to the stored report when the data file is missing', async ({ p
   await page.goto('/');
   await select(page, 'Mars');
 
-  await expect(page.getByTestId('weather-source')).toContainText('Stored report from 13 Oct 2026');
-  await expect(panel(page)).toContainText('Sol 4995');
+  await expect(page.getByTestId('weather-source')).toContainText("NASA's feed couldn't be reached, so this is a saved copy of the latest report.");
+  await expect(panel(page)).toContainText('mission sol 4995');
   await expect.poll(() => warnings.join('\n')).toMatch(/\[weather\] using stored report: HTTP 404/);
 
   await select(page, 'Sun');
   await expect(page.getByTestId('solar-wind')).toHaveCount(0);
+  await expect(page.getByTestId('solar-wind-empty')).toHaveText('Live solar wind readings are unavailable right now.');
 });
 
 test('visible planet labels never overlap', async ({ page }) => {
@@ -202,7 +203,12 @@ test('without WebGL it explains why and keeps the panel working', async ({ page 
 
   await expect(page.getByRole('status')).toContainText('3D view unavailable');
   await expect(panel(page)).toContainText('From Earth');
-  await expect(page.getByTestId('clock')).toContainText('Mars Sol Date');
+  await expect(page.getByTestId('clock')).toContainText('UTC');
+
+  // Without labels to click, the World menu still reaches every body.
+  await page.getByRole('combobox', { name: 'World' }).selectOption({ label: 'Mars' });
+  await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
+  await expect(panel(page)).toContainText('Curiosity weather report');
 });
 
 test('opens live in real time and says when the clock is simulated', async ({ page }) => {
@@ -234,4 +240,66 @@ test('stays live in real time when the viewer prefers reduced motion', async ({ 
   await page.goto('/');
   await expect(page.locator('.stage canvas')).toBeVisible();
   await expect(page.getByTestId('clock-status')).toHaveText('Live');
+});
+
+test('the World menu reaches every body, including ones whose label is hidden', async ({ page }) => {
+  await page.goto('/');
+  const world = page.getByRole('combobox', { name: 'World' });
+  for (const name of ['Sun', 'Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']) {
+    await world.selectOption({ label: name });
+    await expect(panel(page).getByRole('heading', { name })).toBeVisible();
+  }
+  await world.selectOption({ label: 'Overview' });
+  await expect(panel(page).getByRole('heading', { name: 'Pick a world' })).toBeVisible();
+});
+
+test('a new selection starts at the top of the panel with focus on its heading', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const world = page.getByRole('combobox', { name: 'World' });
+  await world.selectOption({ label: 'Mars' });
+  const aside = panel(page);
+  await expect(aside.getByRole('heading', { name: 'Mars' })).toBeFocused();
+  await aside.evaluate((el) => (el.scrollTop = el.scrollHeight));
+  expect(await aside.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+  await world.selectOption({ label: 'Sun' });
+  await expect(aside.getByRole('heading', { name: 'Sun' })).toBeFocused();
+  expect(await aside.evaluate((el) => el.scrollTop)).toBe(0);
+
+  // Closing returns focus to the World menu rather than dropping it on the page.
+  await aside.getByRole('button', { name: /^Close Sun/ }).click();
+  await expect(world).toBeFocused();
+  await expect(world).toHaveValue('');
+});
+
+test('play and pause is a plain button, and picking a speed resumes playback', async ({ page }) => {
+  await page.goto('/');
+  const button = page.getByRole('button', { name: 'Pause' });
+  await expect(button).not.toHaveAttribute('aria-pressed');
+  await button.click();
+  await expect(page.getByTestId('clock-status')).toHaveText('Paused');
+  await page.getByRole('combobox', { name: 'Playback speed' }).selectOption({ label: '1 year / s' });
+  await expect(page.getByTestId('clock-status')).toHaveText('Simulated');
+  await expect(page.getByTestId('clock-offset')).toContainText('ahead from today');
+});
+
+test('planet labels stay clear of the header, panel and toolbar', async ({ page }) => {
+  for (const size of [{ width: 1400, height: 860 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(size);
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Pause' }).click();
+    await page.waitForTimeout(500);
+    const overlaps = await page.evaluate(() => {
+      const areas = [...document.querySelectorAll('[data-label-avoid]')].map((el) => el.getBoundingClientRect());
+      return [...document.querySelectorAll<HTMLElement>('.label:not([hidden])')]
+        .filter((l) => {
+          const r = l.getBoundingClientRect();
+          return areas.some((a) => r.left < a.right && r.right > a.left && r.top < a.bottom && r.bottom > a.top);
+        })
+        .map((l) => l.textContent?.trim());
+    });
+    expect(overlaps, `labels under page UI at ${size.width}px`).toEqual([]);
+  }
 });

@@ -73,7 +73,10 @@
 {#if failed}
   <div class="fallback" role="status">
     <p class="eyebrow">3D view unavailable</p>
-    <p>This browser couldn't start WebGL, which the 3D view needs. Turning on hardware acceleration usually fixes it.</p>
+    <p>
+      This browser couldn't start WebGL, which the 3D view needs. Turning on hardware acceleration usually fixes it.
+      You can still choose a world from the World menu.
+    </p>
   </div>
 {/if}
 
@@ -110,6 +113,7 @@
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
+    background: var(--void);
     width: min(360px, calc(100% - 32px));
     box-sizing: border-box;
     display: grid;
@@ -125,6 +129,14 @@
     line-height: 1.5;
   }
 
+  /* On phones the panel fills the lower half, so sit the message just under the header. */
+  @media (max-width: 640px) {
+    .fallback {
+      top: calc(96px + env(safe-area-inset-top, 0px));
+      transform: translateX(-50%);
+    }
+  }
+
   .labels {
     position: fixed;
     inset: 0;
@@ -137,13 +149,14 @@
     left: 0;
     top: 0;
     pointer-events: auto;
-    font: 500 11px/1 var(--font-body);
+    font: 500 12px/1 var(--font-body);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--ink-dim);
     background: none;
     border: 0;
-    padding: 4px 6px;
+    /* Larger hit area than the text itself. */
+    padding: 7px 8px;
     cursor: pointer;
     white-space: nowrap;
     text-shadow:

@@ -2,7 +2,8 @@
 :root {
   --void: #070a14;
   --panel: rgba(14, 19, 34, 0.84);
-  --panel-line: rgba(160, 176, 214, 0.18);
+  --panel-solid: #0e1322;
+  --panel-line: rgba(160, 176, 214, 0.32);
   --ink: #e7eaf3;
   --ink-dim: #9aa3bb;
   --sun: #f0b65a;
@@ -87,12 +88,23 @@ dl.stats {
 
 dl.stats dt {
   color: var(--ink-dim);
-  font-size: 12.5px;
+  font-size: 13px;
 }
 
 dl.stats dd {
   margin: 0;
-  font: 400 12.5px/1.35 var(--font-data);
+  font: 400 13px/1.35 var(--font-data);
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Visible only to screen readers. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }

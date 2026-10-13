@@ -8,7 +8,11 @@ import { glowTexture, planetTexture, ringTexture, seededRandom } from './texture
 const DEG = Math.PI / 180;
 const DAY_MS = 86_400_000;
 const SUN_SIZE = 2.6;
-const LABEL_HEIGHT = 19;
+const LABEL_HEIGHT = 26;
+const ORBIT_COLOR = 0x6b7799;
+const ORBIT_SELECTED = 0xf0b65a;
+/** How often to re-read the page areas labels must avoid (header, panel, toolbar). */
+const AVOID_REFRESH_MS = 300;
 
 // When labels overlap, the earlier body in this list keeps its label.
 const LABEL_PRIORITY: BodyId[] = ['mars', 'earth', 'sun', 'jupiter', 'saturn', 'venus', 'mercury', 'uranus', 'neptune'];
@@ -150,6 +154,13 @@ export class OrreryScene {
 
   select(id: BodyId | null) {
     this.selected = id;
+    // Highlight only the selected planet's orbit.
+    for (const n of this.nodes) {
+      const m = n.line.material as THREE.LineBasicMaterial;
+      const on = n.planet.id === id;
+      m.color.setHex(on ? ORBIT_SELECTED : ORBIT_COLOR);
+      m.opacity = on ? 0.8 : 0.35;
+    }
     if (id === null) this.desiredDist = this.overviewDistance();
     else if (id === 'sun') this.desiredDist = 16;
     else this.desiredDist = this.node(id).size * 9 + 2.5;
@@ -224,10 +235,9 @@ export class OrreryScene {
     }
     this.scene.add(holder);
 
-    const isMars = p.id === 'mars';
     const line = new THREE.Line(
       new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(361 * 3), 3)),
-      new THREE.LineBasicMaterial({ color: isMars ? 0xd9774a : 0x6b7799, transparent: true, opacity: isMars ? 0.75 : 0.35 })
+      new THREE.LineBasicMaterial({ color: ORBIT_COLOR, transparent: true, opacity: 0.35 })
     );
     this.scene.add(line);
     this.nodes.push({ planet: p, size, holder, mesh, line });
@@ -356,9 +366,24 @@ export class OrreryScene {
     return width;
   }
 
-  // Place labels in priority order (selection first) and hide any that would overlap one already placed.
+  private avoid: DOMRect[] = [];
+  private avoidReadAt = 0;
+
+  /** Page areas labels must not cover: elements marked data-label-avoid (header, panel, toolbar). */
+  private avoidRects() {
+    const t = performance.now();
+    if (t - this.avoidReadAt > AVOID_REFRESH_MS) {
+      this.avoidReadAt = t;
+      this.avoid = [...document.querySelectorAll('[data-label-avoid]')].map((el) => el.getBoundingClientRect());
+    }
+    return this.avoid;
+  }
+
+  // Place labels in priority order (selection first). Hide any that would overlap a label already
+  // placed or sit under the header, panel or toolbar.
   private placeLabels() {
     const { clientWidth: w, clientHeight: h } = this.opts.container;
+    const avoid = this.avoidRects();
     const order = this.selected
       ? [this.selected, ...LABEL_PRIORITY.filter((id) => id !== this.selected)]
       : LABEL_PRIORITY;
@@ -376,7 +401,9 @@ export class OrreryScene {
       const y = ((1 - p.y) / 2) * h;
       const onScreen = p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
       const overlaps = placed.some((o) => Math.abs(o.x - x) < (o.w + width) / 2 && Math.abs(o.y - y) < LABEL_HEIGHT);
-      el.hidden = !onScreen || overlaps;
+      // The label's box: centred on x, with its bottom edge at y.
+      const covered = avoid.some((r) => x + width / 2 > r.left && x - width / 2 < r.right && y > r.top && y - LABEL_HEIGHT < r.bottom);
+      el.hidden = !onScreen || overlaps || covered;
       if (el.hidden) continue;
       placed.push({ x, y, w: width });
       el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;

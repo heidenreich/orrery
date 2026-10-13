@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import SolarWindCard from '$lib/components/SolarWindCard.svelte';
   import SunAndSeasons from '$lib/components/SunAndSeasons.svelte';
-  import { ago } from '$lib/format';
-  import { STORED_MARS_REPORT, STORED_REPORT_CHECKED } from '$lib/data/mars-report';
+  import { ago, celsius, km, lightTime, seasonWords } from '$lib/format';
+  import { STORED_MARS_REPORT } from '$lib/data/mars-report';
   import type { WeatherData } from '$lib/data/weather-data';
   import { bodyById, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { distance, length, marsSolDate } from '$lib/orrery/orbits';
@@ -21,51 +22,73 @@
   let { selected, simMs, positions, weather, now, onclose }: Props = $props();
 
   const report = $derived(weather?.mars.report ?? STORED_MARS_REPORT);
-  const fmtTemp = (c: number) => `${Math.round(c)} °C`;
   // Show the feed's wording in sentence case, with any underscores as spaces.
   const uvText = (s: string) => { const t = s.replace(/_/g, ' ').toLowerCase(); return t[0].toUpperCase() + t.slice(1); };
-
+  const range = (lo: number | null | undefined, hi: number | null | undefined) =>
+    `${lo != null ? celsius(lo) : '?'} to ${hi != null ? celsius(hi) : '?'}`;
 
   const body = $derived(selected ? bodyById(selected) : null);
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const reportAge = $derived(ago(`${report.earthDate}T12:00:00Z`, now));
 
   const fmtAU = (au: number) => `${au.toFixed(au < 10 ? 3 : 2)} AU`;
-  const fmtKm = (au: number) => `${(au * 149.5978707).toFixed(au < 10 ? 1 : 0)} M km`;
-  function fmtLight(au: number) {
-    const min = au * 8.3167;
-    return min < 120 ? `${min.toFixed(1)} light-min` : `${(min / 60).toFixed(2)} light-h`;
-  }
 
-  // Live distances for the selected body, or Mars on the overview.
+  // Distances for the selected body, or Mars on the overview.
   const live = $derived.by(() => {
     if (!positions || simMs === null) return [];
     const earth = positions.earth;
     const id = selected ?? 'mars';
     if (id === 'sun') {
       const d = length(earth);
-      return [['From Earth', `${fmtAU(d)} · ${fmtKm(d)}`], ['Light time', fmtLight(d)]];
+      return [['From Earth', `${fmtAU(d)} · ${km(d)}`], ['Sunlight takes', lightTime(d)]];
     }
     const p = positions[id];
     const rows: [string, string][] = [['From the Sun', fmtAU(length(p))]];
     if (id !== 'earth') {
       const d = distance(p, earth);
-      rows.push(['From Earth', `${fmtAU(d)} · ${fmtKm(d)}`], ['Signal delay', fmtLight(d)]);
+      rows.push(['From Earth', `${fmtAU(d)} · ${km(d)}`], ['Radio signal takes', lightTime(d)]);
     }
-    if (id === 'mars') rows.push(['Mars Sol Date', Math.floor(marsSolDate(simMs)).toLocaleString('en-US')]);
     return rows;
+  });
+
+  // Each time the selection changes: back to the top, and move focus to the new heading so
+  // keyboard and screen reader users land on what they picked.
+  let panel: HTMLElement;
+  let heading: HTMLElement | undefined = $state();
+  let more = $state(false);
+  const checkMore = () => {
+    if (panel) more = panel.scrollHeight - panel.scrollTop - panel.clientHeight > 8;
+  };
+  $effect(() => {
+    void selected;
+    tick().then(() => {
+      if (!panel) return;
+      panel.scrollTop = 0;
+      checkMore();
+      if (selected) heading?.focus({ preventScroll: true });
+    });
+  });
+  $effect(() => {
+    // Content changes (data arriving, live values) can change whether there is more to scroll.
+    void weather;
+    void simMs;
+    checkMore();
   });
 </script>
 
-<aside class="panel surface" aria-live="polite">
+<aside class="panel surface" aria-label="Details" bind:this={panel} onscroll={checkMore} data-label-avoid>
   {#if !body}
     <header>
       <div>
-        <p class="eyebrow">Orrery</p>
+        <p class="eyebrow">Solar system</p>
         <h2>Pick a world</h2>
       </div>
     </header>
-    <p>Planet positions are computed for the date shown, from JPL's orbital elements. Select a planet to see its weather.</p>
-    <p class="hint">Drag to rotate · scroll or pinch to zoom · Esc returns to the overview.</p>
+    <p>
+      Positions, distances, sunlight and seasons are calculated for the date shown. Mars shows the latest
+      weather report from NASA's Curiosity rover, and the Sun shows live solar wind.
+    </p>
+    <p class="hint">Choose from the World menu or click a planet. Drag to rotate, scroll or pinch to zoom.</p>
     <div>
       <p class="eyebrow section">Mars right now</p>
       {@render stats(live)}
@@ -74,55 +97,64 @@
     <header>
       <div>
         <p class="eyebrow">{body.kind}</p>
-        <h2>{body.name}</h2>
+        <h2 tabindex="-1" bind:this={heading}>{body.name}</h2>
       </div>
-      <button class="close" aria-label="Back to overview" onclick={onclose}>×</button>
+      <button class="close" aria-label="Close {body.name} and return to the overview" onclick={onclose}>×</button>
     </header>
 
     {#if body.id === 'mars'}
       <div class="report">
-        <p class="eyebrow">Latest Curiosity weather report</p>
-        <div class="big">Sol {report.sol}</div>
+        <p class="eyebrow">Curiosity weather report</p>
+        <div class="big">{fmtDate.format(new Date(`${report.earthDate}T00:00:00Z`))}</div>
+        <p class="sub">{reportAge} · mission sol {report.sol} at Gale Crater</p>
         <dl class="stats">
-          <dt>Earth date</dt>
-          <dd>{fmtDate.format(new Date(`${report.earthDate}T00:00:00Z`))}</dd>
           {#if report.minTemp !== null || report.maxTemp !== null}
             <dt>Air temperature</dt>
-            <dd>{report.minTemp !== null ? fmtTemp(report.minTemp) : '?'} to {report.maxTemp !== null ? fmtTemp(report.maxTemp) : '?'}</dd>
+            <dd>{range(report.minTemp, report.maxTemp)}</dd>
+          {/if}
+          <!-- Loose != null checks: data files built before these fields existed leave them undefined. -->
+          {#if report.minGroundTemp != null || report.maxGroundTemp != null}
+            <dt>Ground temperature</dt>
+            <dd>{range(report.minGroundTemp, report.maxGroundTemp)}</dd>
           {/if}
           {#if report.pressure !== null}<dt>Pressure</dt><dd>{report.pressure.toLocaleString('en-US')} Pa</dd>{/if}
           {#if report.sunrise && report.sunset}<dt>Daylight</dt><dd>{report.sunrise}–{report.sunset}</dd>{/if}
           {#if report.opacity}<dt>Sky</dt><dd>{report.opacity}</dd>{/if}
-          <!-- Loose != null checks: data files built before these fields existed leave them undefined. -->
-          {#if report.minGroundTemp != null || report.maxGroundTemp != null}
-            <dt>Ground temperature</dt>
-            <dd>{report.minGroundTemp != null ? fmtTemp(report.minGroundTemp) : '?'} to {report.maxGroundTemp != null ? fmtTemp(report.maxGroundTemp) : '?'}</dd>
-          {/if}
           {#if report.uvIndex}<dt>UV level</dt><dd>{uvText(report.uvIndex)}</dd>{/if}
-          {#if report.ls !== null || report.month !== null}
-            <dt>Season then</dt>
-            <dd>{[report.ls !== null ? `Ls ${report.ls}°` : '', report.month !== null ? `month ${report.month}` : ''].filter(Boolean).join(', ')}</dd>
-          {/if}
+          {#if report.ls !== null}<dt>Season then</dt><dd>{seasonWords(report.ls)}</dd>{/if}
         </dl>
         <p class="note" data-testid="weather-source">
           {#if !weather}
             Loading weather data…
           {:else if weather.mars.source === 'live' && weather.mars.fetchedAt}
-            From NASA's REMS feed, checked {ago(weather.mars.fetchedAt, now)}.
+            From NASA's REMS feed, checked {ago(weather.mars.fetchedAt, now)}. Curiosity's reports usually
+            appear weeks after the sol they describe.
           {:else if weather.mars.source === 'previous' && weather.mars.fetchedAt}
-            NASA's feed was unreachable at the last update; this is from {ago(weather.mars.fetchedAt, now)}.
+            NASA's feed couldn't be reached at the last update, so this is the copy fetched
+            {ago(weather.mars.fetchedAt, now)}.
           {:else}
-            Stored report from {fmtDate.format(new Date(`${STORED_REPORT_CHECKED}T00:00:00Z`))}. NASA's feed couldn't be reached; details are in the browser console.
+            NASA's feed couldn't be reached, so this is a saved copy of the latest report.
           {/if}
         </p>
       </div>
     {/if}
 
-    {#if body.id === 'sun' && weather}
-      <SolarWindCard data={weather.solarWind} {now} />
+    {#if body.id === 'sun'}
+      {#if weather?.solarWind.summary}
+        <SolarWindCard data={weather.solarWind} {now} />
+      {:else if weather}
+        <p class="empty" data-testid="solar-wind-empty">Live solar wind readings are unavailable right now.</p>
+      {/if}
     {/if}
 
     {@render stats(live)}
+
+    {#if body.id === 'mars' && simMs !== null}
+      <dl class="stats">
+        <dt title="Days counted on Mars since 29 December 1873, the Mars equivalent of a calendar date">Mars Sol Date</dt>
+        <dd>{Math.floor(marsSolDate(simMs)).toLocaleString('en-US')}</dd>
+      </dl>
+    {/if}
 
     {#if body.id !== 'sun' && simMs !== null}
       <SunAndSeasons id={body.id} {simMs} />
@@ -145,6 +177,7 @@
       </ul>
     </div>
   {/if}
+  <div class="more" class:show={more} aria-hidden="true">More below ↓</div>
 </aside>
 
 {#snippet stats(rows: string[][])}
@@ -161,7 +194,7 @@
     width: min(340px, calc(100% - 32px));
     max-height: calc(100% - 120px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
-    padding: 16px 18px 18px;
+    padding: 16px 18px 0;
     display: grid;
     gap: 14px;
     box-sizing: border-box;
@@ -184,6 +217,15 @@
     font: 800 24px/1.1 var(--font-display);
   }
 
+  h2:focus {
+    outline: none;
+  }
+
+  h2:focus-visible {
+    outline: 2px solid var(--sun);
+    outline-offset: 4px;
+  }
+
   p {
     margin: 0;
     line-height: 1.5;
@@ -194,7 +236,7 @@
   }
 
   .hint {
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--ink-dim);
   }
 
@@ -202,13 +244,17 @@
     background: none;
     border: 0;
     color: var(--ink-dim);
-    font: 400 22px/1 var(--font-body);
+    font: 400 24px/1 var(--font-body);
     cursor: pointer;
-    padding: 2px 6px;
+    min-width: 40px;
+    min-height: 40px;
+    margin: -8px -10px 0 0;
+    border-radius: 8px;
   }
 
   .close:hover {
     color: var(--ink);
+    background: rgba(255, 255, 255, 0.06);
   }
 
   .report {
@@ -228,10 +274,23 @@
     font: 500 22px/1 var(--font-data);
   }
 
-  .note {
-    font-size: 12px;
+  .sub {
+    margin-top: -2px;
+    font-size: 12.5px;
+    color: var(--ink-dim);
+  }
+
+  .note,
+  .empty {
+    font-size: 12.5px;
     color: var(--ink-dim);
     line-height: 1.45;
+  }
+
+  .empty {
+    border: 1px dashed var(--panel-line);
+    border-radius: 10px;
+    padding: 12px 14px;
   }
 
   ul {
@@ -245,6 +304,26 @@
     font-size: 13.5px;
   }
 
+  /* Sticks to the bottom edge while there is more to scroll. */
+  .more {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -18px;
+    padding: 18px 18px 10px;
+    text-align: center;
+    font: 500 11.5px/1 var(--font-body);
+    letter-spacing: 0.06em;
+    color: var(--ink-dim);
+    background: linear-gradient(to bottom, transparent, var(--panel-solid) 60%);
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+  }
+
+  .more.show {
+    opacity: 1;
+  }
+
   @media (max-width: 640px) {
     .panel {
       top: auto;
@@ -253,6 +332,12 @@
       right: 16px;
       width: auto;
       max-height: 46%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .more {
+      transition: none;
     }
   }
 </style>

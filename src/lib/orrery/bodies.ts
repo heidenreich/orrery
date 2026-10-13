@@ -39,7 +39,7 @@ export const SUN: Body = {
   temp: '≈ 5,500 °C surface',
   weather: [
     'Its weather is space weather: the solar wind streams outward at about 400 km/s, punctuated by flares and coronal mass ejections.',
-    'NOAA publishes live solar-wind readings, a candidate data feed for this app.'
+    'Gusts of fast solar wind and eruptions from the Sun drive Earth’s auroras and can disturb satellites and power grids.'
   ]
 };
 
