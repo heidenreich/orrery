@@ -10,9 +10,6 @@ Planet positions are computed for any date from 1000 to 3000 with
 Select a planet to see its distance from Earth, signal
 delay, and what its weather is like.
 
-It grew out of [heidenreich/mars](https://github.com/heidenreich/mars), a 2014
-Mars weather page.
-
 ## Develop
 
 ```sh
