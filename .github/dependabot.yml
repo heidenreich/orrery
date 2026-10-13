@@ -5,3 +5,15 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # Every npm dependency is pinned to an exact version, so updates only arrive through these PRs.
+  # Minor and patch updates come as one weekly PR; a major update gets its own, so one breaking
+  # change can't hold back the rest. CI runs the full tests on each.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]

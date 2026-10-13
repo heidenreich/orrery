@@ -45,7 +45,7 @@ The npm 10.9 bundled with Node 22 crashes on this dependency tree, so
   then runs `npm run test:build` on it, without a browser.
 - **deploy**: publishes that build to https://heidenreich.github.io/orrery/.
 
-The hourly run (at :17) only refreshes the data: it skips the test job, so a
+The hourly run (at :23) only refreshes the data: it skips the test job, so a
 flaky test or a failed browser install cannot stop the update. To refresh by
 hand, run the CI workflow from the Actions tab. Each build's summary shows what
 data it fetched.
@@ -158,3 +158,8 @@ identical halves (`static/textures/LICENSE.txt`). About 800 KB in all, loaded
 after the scene appears; until then, or if one fails, the drawn textures in
 `textures.ts` stay. Venus keeps its drawn cloud texture, since the only Venus
 map shows the radar-mapped surface beneath the clouds.
+
+## Licence
+
+The code is under the MIT licence (`LICENSE`). The images in `static/textures/`
+are CC BY 4.0 (see Images above), and Astronomy Engine is MIT.
