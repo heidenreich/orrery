@@ -30,11 +30,17 @@ The npm 10.9 bundled with Node 22 crashes on this dependency tree
 (`Cannot read properties of null (reading 'edgesOut')`). Use npm 11:
 `npx npm@11 install`, or `npm install -g npm@11`.
 
+## Deploy
+
+`.github/workflows/ci.yml` type-checks, tests and builds every push and pull
+request. Pushes to `main` also deploy the site to GitHub Pages at
+https://heidenreich.github.io/orrery/. Pages must be set to deploy from
+GitHub Actions (Settings → Pages → Source).
+
 ## Stack
 
 - [SvelteKit](https://svelte.dev/docs/kit) (Svelte 5) with `adapter-static`: the
-  site builds to plain files, ready for GitHub Pages. Set `BASE_PATH=/orrery` when
-  building for a project page.
+  site builds to plain files. CI sets `BASE_PATH` from the Pages configuration.
 - [three.js](https://threejs.org) for the 3D scene, loaded only in the browser.
 - [Vitest](https://vitest.dev) for unit tests.
 
