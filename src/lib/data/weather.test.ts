@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import sample from './fixtures/rems-sample.json';
+import remsSample from './fixtures/rems-sample.json';
+import windSample from './fixtures/solar-wind-sample.json';
+import type { Logger } from './fetch-json';
 import { STORED_MARS_REPORT } from './mars-report';
-import { parseSol } from './rems';
-import { fetchLatestMarsReport, type Logger } from './weather';
+import { parseSol, REMS_FEED_URL, summarizeRems } from './rems';
+import { SOLAR_WIND_URL, summarizeSolarWind } from './solar-wind';
+import { loadWeather } from './weather';
+import { collectWeather, isWeatherData, type WeatherData } from './weather-data';
 
 const json = (body: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' }, ...init });
@@ -13,10 +17,21 @@ function recorder(): Logger & { lines: string[] } {
   return { lines, info: push, warn: push };
 }
 
+/** A fetch that answers by URL; anything unlisted fails like a blocked request. */
+function routes(map: Record<string, () => Response | Promise<Response>>): typeof fetch {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const handler = map[String(input)];
+    if (!handler) throw new TypeError('Failed to fetch');
+    return handler();
+  }) as unknown as typeof fetch;
+}
+
+const NOW = () => new Date('2026-10-13T13:00:00Z');
+const PREVIOUS = 'https://example.test/orrery/data/weather.json';
+
 describe('parseSol', () => {
   it('converts the feed strings to numbers and keeps text fields', () => {
-    const r = parseSol(sample.soles[0]);
-    expect(r).toEqual({
+    expect(parseSol(remsSample.soles[0])).toEqual({
       ok: true,
       missing: [],
       report: {
@@ -27,7 +42,7 @@ describe('parseSol', () => {
   });
 
   it('treats "--" as a missing reading and lists what is missing', () => {
-    const r = parseSol(sample.soles[1]);
+    const r = parseSol(remsSample.soles[1]);
     expect(r.ok && r.report.minTemp).toBe(null);
     expect(r.ok && r.missing).toEqual(['min_temp', 'max_temp', 'pressure', 'atmo_opacity']);
   });
@@ -39,46 +54,128 @@ describe('parseSol', () => {
   });
 });
 
-describe('fetchLatestMarsReport', () => {
-  it('returns the newest valid sol and logs each step', async () => {
-    const log = recorder();
-    const reversed = { soles: [...sample.soles].reverse() };
-    const result = await fetchLatestMarsReport({ fetch: vi.fn(async () => json(reversed)), log });
-
-    expect(result.source).toBe('live');
-    expect(result.report.sol).toBe(4995);
-    expect(log.lines[0]).toMatch(/^\[weather\] GET https:\/\/mars\.nasa\.gov/);
-    expect(log.lines.some((l) => l.includes('HTTP 200'))).toBe(true);
-    expect(log.lines.some((l) => l.includes('2 sols in feed'))).toBe(true);
-    expect(log.lines.at(-1)).toMatch(/live report: sol 4995/);
+describe('summarizeRems', () => {
+  it('keeps the newest report and a short history, oldest first', () => {
+    const body = { soles: [{ sol: '5000', terrestrial_date: '' }, ...[...remsSample.soles].reverse()] };
+    const r = summarizeRems(body, recorder());
+    expect(r.ok && r.report.sol).toBe(4995);
+    expect(r.ok && r.history.map((h) => h.sol)).toEqual([4994, 4995]);
   });
 
-  it('skips invalid entries and logs why', async () => {
+  it('limits the history length', () => {
+    const soles = Array.from({ length: 100 }, (_, i) => ({ sol: String(4000 + i), terrestrial_date: '2026-01-01' }));
+    const r = summarizeRems({ soles }, recorder(), 10);
+    expect(r.ok && r.history.length).toBe(10);
+    expect(r.ok && r.history.at(-1)?.sol).toBe(4099);
+  });
+
+  it('explains an unexpected shape', () => {
+    expect(summarizeRems({ data: [] }, recorder())).toEqual({ ok: false, reason: 'no "soles" array (keys: data)' });
+  });
+});
+
+describe('summarizeSolarWind', () => {
+  it('uses only the active spacecraft and reports per-source counts', () => {
     const log = recorder();
-    const body = { soles: [{ sol: '5000', terrestrial_date: '' }, sample.soles[0]] };
-    const result = await fetchLatestMarsReport({ fetch: async () => json(body), log });
-    expect(result.report.sol).toBe(4995);
-    expect(log.lines.some((l) => l.includes('skipping entry: invalid terrestrial_date'))).toBe(true);
+    const r = summarizeSolarWind(windSample.records, log);
+    expect(r.ok && r.summary.latest).toEqual({
+      time: '2026-10-13T12:55:00.000Z', speed: 538.2, density: 5.1, temperature: 201000, source: 'DSCOVR'
+    });
+    expect(log.lines[0]).toContain('"IMAP":{"active":0,"inactive":2}');
+  });
+
+  it('keeps the last 24 hours, oldest first, and skips records without a speed', () => {
+    const r = summarizeSolarWind(windSample.records, recorder());
+    expect(r.ok && r.summary.series.map((p) => p.time)).toEqual([
+      '2026-10-13T11:30:00.000Z',
+      '2026-10-13T12:55:00.000Z'
+    ]);
+  });
+
+  it('falls back to every source when none is flagged active', () => {
+    const inactive = windSample.records.filter((r) => !r.active);
+    const r = summarizeSolarWind(inactive, recorder());
+    expect(r.ok && r.summary.latest.source).toBe('IMAP');
+    expect(r.ok && r.summary.latest.speed).toBe(541.91);
+  });
+
+  it('rejects data that is not a record list', () => {
+    expect(summarizeSolarWind({}, recorder())).toMatchObject({ ok: false });
+    expect(summarizeSolarWind([{ time_tag: 'x' }], recorder())).toMatchObject({ ok: false });
+  });
+});
+
+describe('collectWeather', () => {
+  it('builds a live data file from both feeds', async () => {
+    const fetch = routes({ [REMS_FEED_URL]: () => json(remsSample), [SOLAR_WIND_URL]: () => json(windSample.records) });
+    const d = await collectWeather({ fetch, log: recorder(), now: NOW });
+    expect(isWeatherData(d)).toBe(true);
+    expect(d.mars).toMatchObject({ source: 'live', fetchedAt: '2026-10-13T13:00:00.000Z', report: { sol: 4995 } });
+    expect(d.solarWind).toMatchObject({ source: 'live', summary: { latest: { speed: 538.2 } } });
+    // Small enough for every visitor: the feeds are megabytes, the file should be a few KB.
+    expect(JSON.stringify(d).length).toBeLessThan(20_000);
+  });
+
+  it('keeps the previous deploy’s data for a feed that fails', async () => {
+    const previous: WeatherData = await collectWeather({
+      fetch: routes({ [REMS_FEED_URL]: () => json(remsSample), [SOLAR_WIND_URL]: () => json(windSample.records) }),
+      log: recorder(),
+      now: () => new Date('2026-10-13T12:00:00Z')
+    });
+    const fetch = routes({ [REMS_FEED_URL]: () => json({}, { status: 503 }), [PREVIOUS]: () => json(previous) });
+    const log = recorder();
+    const d = await collectWeather({ fetch, log, previousUrl: PREVIOUS, now: NOW });
+
+    expect(d.mars).toMatchObject({ source: 'previous', fetchedAt: '2026-10-13T12:00:00.000Z', error: 'HTTP 503' });
+    expect(d.solarWind).toMatchObject({ source: 'previous', error: 'request failed (TypeError: Failed to fetch)' });
+    expect(log.lines.some((l) => l.includes('NASA feed failed (HTTP 503); Mars data is previous'))).toBe(true);
+  });
+
+  it('falls back to the stored report when nothing can be fetched', async () => {
+    const d = await collectWeather({ fetch: routes({}), log: recorder(), previousUrl: PREVIOUS, now: NOW });
+    expect(d.mars).toMatchObject({ source: 'stored', report: STORED_MARS_REPORT });
+    expect(d.solarWind).toMatchObject({ source: 'none', summary: null });
+  });
+
+  it('makes no requests when offline', async () => {
+    const fetch = routes({});
+    await collectWeather({ fetch, log: recorder(), offline: true, now: NOW });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('loadWeather', () => {
+  it('returns the data file and logs a summary', async () => {
+    const data = await collectWeather({
+      fetch: routes({ [REMS_FEED_URL]: () => json(remsSample), [SOLAR_WIND_URL]: () => json(windSample.records) }),
+      log: recorder(),
+      now: NOW
+    });
+    const log = recorder();
+    const d = await loadWeather('/data/weather.json', { fetch: routes({ '/data/weather.json': () => json(data) }), log });
+    expect(d).toEqual(data);
+    expect(log.lines.at(-1)).toMatch(/^\[weather\] data built 2026-10-13T13:00:00.000Z .*live, sol 4995/);
   });
 
   it.each([
-    ['a network or CORS failure', async () => { throw new TypeError('Failed to fetch'); }, /blocked by CORS or the network/],
-    ['an HTTP error', async () => json({}, { status: 503 }), /HTTP 503/],
-    ['a non-JSON body', async () => new Response('<html>', { status: 200 }), /not JSON/],
-    ['an unexpected shape', async () => json({ data: [] }), /no "soles" array \(keys: data\)/],
-    ['no valid entries', async () => json({ soles: [{ sol: 'x' }] }), /none of the 1 entries/]
-  ])('falls back to the stored report on %s', async (_, fakeFetch, reason) => {
+    ['a missing file', routes({})],
+    ['an unrecognised file', routes({ '/data/weather.json': () => json({ version: 2 }) })]
+  ])('falls back to the stored report for %s', async (_, fetch) => {
     const log = recorder();
-    const result = await fetchLatestMarsReport({ fetch: fakeFetch as typeof fetch, log });
-    expect(result).toMatchObject({ source: 'stored', report: STORED_MARS_REPORT });
-    expect(result.source === 'stored' && result.reason).toMatch(reason);
-    expect(log.lines.at(-1)).toMatch(/\[weather\] using stored report/);
+    const d = await loadWeather('/data/weather.json', { fetch, log });
+    expect(d.mars).toMatchObject({ source: 'stored', report: STORED_MARS_REPORT });
+    expect(log.lines.at(-1)).toMatch(/^\[weather\] using stored report/);
   });
 
   it('gives up after the timeout', async () => {
-    const hang: typeof fetch = (_, init) =>
-      new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))));
-    const result = await fetchLatestMarsReport({ fetch: hang, log: recorder(), timeoutMs: 20 });
-    expect(result.source === 'stored' && result.reason).toBe('timed out after 20 ms');
+    const hang = ((_: unknown, init?: RequestInit) =>
+      new Promise((_, reject) =>
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+      )) as typeof fetch;
+    vi.useFakeTimers();
+    const pending = loadWeather('/data/weather.json', { fetch: hang, log: recorder() });
+    await vi.advanceTimersByTimeAsync(8000);
+    vi.useRealTimers();
+    expect((await pending).mars.source).toBe('stored');
   });
 });

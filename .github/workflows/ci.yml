@@ -1,11 +1,14 @@
 name: CI
 
 # Branches are checked through their pull request, so each change runs once.
+# The hourly schedule rebuilds the site so its NASA and NOAA data stays current.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
 
 permissions:
   contents: read
@@ -51,11 +54,25 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v6
 
+      # Fetches NASA and NOAA data into data/weather.json. A feed that fails keeps the
+      # last good copy from the live site instead of replacing it with nothing.
       - name: Build for Pages
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: npm run build
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          PREVIOUS_DATA_URL: ${{ steps.pages.outputs.base_url }}/data/weather.json
+
+      - name: Show data summary
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          node -e '
+            const d = require("./build/data/weather.json");
+            const w = d.solarWind.summary;
+            console.log(`Mars: ${d.mars.source}, sol ${d.mars.report.sol} (${d.mars.report.earthDate})${d.mars.error ? ", error: " + d.mars.error : ""}`);
+            console.log(`Solar wind: ${d.solarWind.source}${w ? `, ${w.latest.speed} km/s at ${w.latest.time} from ${w.latest.source}, ${w.series.length} points` : ""}${d.solarWind.error ? ", error: " + d.solarWind.error : ""}`);
+          ' | tee -a "$GITHUB_STEP_SUMMARY"
+
 
       - name: Upload site
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

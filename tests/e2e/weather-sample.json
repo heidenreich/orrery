@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-13T13:00:00.000Z",
+  "mars": {
+    "source": "live",
+    "fetchedAt": "2026-10-13T13:00:00.000Z",
+    "report": {
+      "sol": 4995,
+      "earthDate": "2026-08-25",
+      "ls": 341,
+      "month": 12,
+      "minTemp": -71,
+      "maxTemp": -5,
+      "pressure": 777,
+      "sunrise": "06:46",
+      "sunset": "18:51",
+      "opacity": "Sunny"
+    },
+    "history": [
+      {
+        "sol": 4994,
+        "earthDate": "2026-08-24",
+        "minTemp": null,
+        "maxTemp": null,
+        "pressure": null
+      },
+      {
+        "sol": 4995,
+        "earthDate": "2026-08-25",
+        "minTemp": -71,
+        "maxTemp": -5,
+        "pressure": 777
+      }
+    ]
+  },
+  "solarWind": {
+    "source": "live",
+    "fetchedAt": "2026-10-13T13:00:00.000Z",
+    "summary": {
+      "latest": {
+        "time": "2026-10-13T12:55:00.000Z",
+        "speed": 538.2,
+        "density": 5.1,
+        "temperature": 201000,
+        "source": "DSCOVR"
+      },
+      "series": [
+        {
+          "time": "2026-10-13T11:30:00.000Z",
+          "speed": 512.4,
+          "density": null,
+          "temperature": 180200
+        },
+        {
+          "time": "2026-10-13T12:10:00.000Z",
+          "speed": 525.0,
+          "density": 5.6,
+          "temperature": 190000
+        },
+        {
+          "time": "2026-10-13T12:55:00.000Z",
+          "speed": 538.2,
+          "density": 5.1,
+          "temperature": 201000
+        }
+      ]
+    }
+  }
+}

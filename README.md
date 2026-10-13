@@ -41,6 +41,11 @@ tests on every pull request and every push to `main`. Pushes to `main` also
 deploy the site to GitHub Pages at https://heidenreich.github.io/orrery/.
 Pages must be set to deploy from GitHub Actions (Settings → Pages → Source).
 
+The same workflow also runs every hour (at :17) to rebuild the site with fresh
+NASA and NOAA data; see [Data](#data). Each run's summary shows what it fetched.
+GitHub pauses scheduled workflows in a public repository after 60 days without
+activity; re-enable it from the Actions tab if that happens.
+
 ## Stack
 
 - [SvelteKit](https://svelte.dev/docs/kit) (Svelte 5) with `adapter-static`: the
@@ -58,34 +63,44 @@ src/
   lib/orrery/scene.ts       three.js scene, camera and labels (no UI framework code)
   lib/orrery/textures.ts    Procedural planet, ring and glow textures
   lib/data/rems.ts          Parser for NASA's REMS feed
-  lib/data/weather.ts       Live fetch with console logging and fallback
+  lib/data/solar-wind.ts    Parser for NOAA's real-time solar wind feed
+  lib/data/weather-data.ts  Builds the data file, with fallback to the last good copy
+  lib/data/weather.ts       Loads the data file in the browser
+  lib/data/fetch-json.ts    Fetch with timeout and console logging
   lib/data/mars-report.ts   Report type and the stored fallback report
-  lib/components/           Orrery canvas and info panel
+  lib/components/           Orrery canvas, info panel, solar wind card
   routes/+page.svelte       The page: header, clock, controls
+  routes/data/weather.json  Prerendered data file, built from NASA and NOAA
 tests/e2e/                  Browser smoke tests
 ```
 
 ## Data
 
-The Mars weather comes from NASA's REMS feed for Curiosity:
-`https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json`.
-It is undocumented, its values are strings (`"--"` when a reading is missing),
-and it lags a few weeks behind.
+The browser loads one small file, `data/weather.json` (a few KB), built when
+the site is built. The browser never contacts NASA or NOAA.
 
-The page fetches the feed in the browser on load. If the request fails (network,
-CORS, timeout, bad data), it shows the stored report in
-`src/lib/data/mars-report.ts` and says so in the panel.
+| Source | URL | Size | Kept |
+| --- | --- | --- | --- |
+| Curiosity REMS weather | `mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json` | ~2 MB, whole mission | Newest report, last 60 sols |
+| NOAA real-time solar wind | `services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json` | ~2.6 MB, 1-minute records | Newest reading, last 24 h at 10-minute steps |
 
-Every step is logged to the browser console with a `[weather]` prefix: the
-request, HTTP status and headers, the newest raw entry, skipped entries,
-missing readings, and the reason for any fallback. Filter the console on
-`[weather]` to see them.
+At build time `src/routes/data/weather.json/+server.ts` fetches both feeds and
+writes the file. When a feed fails, the build reuses that part of the live
+site's current file (`PREVIOUS_DATA_URL`, set by CI), so an outage keeps the last
+good data instead of replacing it. With no previous copy, the Mars panel shows
+the stored report in `src/lib/data/mars-report.ts` and the solar wind is hidden.
+Set `ORRERY_OFFLINE=1` to build without any network requests.
 
-Checked on 2026-10-13 from the deployed site: NASA allows the cross-site
-request, and the field names match the parser. The feed sends the whole
-mission history (4745 sols), so each page load downloads all of it to show one
-day. `src/lib/data/fixtures/rems-sample.json` holds the real newest entry.
+Logging: the build logs under `[rems]`, `[solar-wind]` and `[data]` (visible in
+the CI log), and the browser logs loading the file under `[weather]`.
 
-Next: a scheduled GitHub Action that writes the latest report to
-`static/weather.json`, so the fallback stays current. NOAA's space weather feed
-(`services.swpc.noaa.gov`) is a candidate second source.
+Notes on the feeds (checked 2026-10-13):
+
+- REMS values are strings, `"--"` when a reading is missing, and the newest sol
+  lags a few weeks behind. Field names match the parser.
+- The solar wind feed interleaves records from several spacecraft, each with
+  `source` and `active`. The parser assumes `active: true` marks NOAA's primary
+  spacecraft and uses only those, or every source if none is active; it logs
+  counts per source so the CI log can confirm this.
+- `src/lib/data/fixtures/` holds the real newest REMS entry and two real solar
+  wind records; the rest of each sample is constructed for tests.

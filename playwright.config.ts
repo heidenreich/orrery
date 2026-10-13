@@ -20,7 +20,8 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+    // ORRERY_OFFLINE skips the NASA and NOAA requests at build time; tests serve their own data file.
+    command: 'ORRERY_OFFLINE=1 npm run build && npm run preview -- --port 4173 --strictPort',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000

@@ -1,6 +1,7 @@
 <script lang="ts">
+  import SolarWindCard from '$lib/components/SolarWindCard.svelte';
   import { STORED_MARS_REPORT, STORED_REPORT_CHECKED } from '$lib/data/mars-report';
-  import type { WeatherResult } from '$lib/data/weather';
+  import type { WeatherData } from '$lib/data/weather-data';
   import { bodyById, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { distance, length, marsSolDate } from '$lib/orrery/orbits';
 
@@ -8,15 +9,22 @@
     selected: BodyId | null;
     simMs: number | null;
     positions: PositionsAU | null;
-    /** Null while the live fetch is in flight. */
-    weather: WeatherResult | null;
+    /** Null while the data file is loading. */
+    weather: WeatherData | null;
     onclose: () => void;
   }
 
   let { selected, simMs, positions, weather, onclose }: Props = $props();
 
-  const report = $derived(weather?.report ?? STORED_MARS_REPORT);
+  const report = $derived(weather?.mars.report ?? STORED_MARS_REPORT);
   const fmtTemp = (c: number) => `${Math.round(c)} °C`;
+
+  function ago(iso: string) {
+    const min = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+    if (min < 60) return `${min} min ago`;
+    const h = Math.round(min / 60);
+    return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`;
+  }
 
   const body = $derived(selected ? bodyById(selected) : null);
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -90,14 +98,20 @@
         </dl>
         <p class="note" data-testid="weather-source">
           {#if !weather}
-            Checking NASA's REMS feed…
-          {:else if weather.source === 'live'}
-            Fetched just now from NASA's REMS feed.
+            Loading weather data…
+          {:else if weather.mars.source === 'live' && weather.mars.fetchedAt}
+            From NASA's REMS feed, checked {ago(weather.mars.fetchedAt)}.
+          {:else if weather.mars.source === 'previous' && weather.mars.fetchedAt}
+            NASA's feed was unreachable at the last update; this is from {ago(weather.mars.fetchedAt)}.
           {:else}
             Stored report from {fmtDate.format(new Date(`${STORED_REPORT_CHECKED}T00:00:00Z`))}. NASA's feed couldn't be reached; details are in the browser console.
           {/if}
         </p>
       </div>
+    {/if}
+
+    {#if body.id === 'sun' && weather}
+      <SolarWindCard data={weather.solarWind} />
     {/if}
 
     {@render stats(live)}

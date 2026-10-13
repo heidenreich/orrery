@@ -1,14 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
-const FEED = 'https://mars.nasa.gov/rss/api/**';
-const sample = readFileSync(new URL('../../src/lib/data/fixtures/rems-sample.json', import.meta.url), 'utf8');
+const DATA = '**/data/weather.json';
+const sample = readFileSync(new URL('./weather-sample.json', import.meta.url), 'utf8');
 
-// Never depend on NASA being reachable: serve the sample feed unless a test overrides it.
+// Serve a known data file (the test build skips the network), and record any request to the
+// upstream feeds: the browser should never call NASA or NOAA itself.
+let upstream: string[] = [];
 test.beforeEach(async ({ page }) => {
-  await page.route(FEED, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: sample })
-  );
+  upstream = [];
+  page.on('request', (r) => /mars\.nasa\.gov|swpc\.noaa\.gov/.test(r.url()) && upstream.push(r.url()));
+  await page.route(DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: sample }));
 });
 
 // Fail the test on any console error or uncaught exception.
@@ -20,18 +22,19 @@ function trackErrors(page: Page) {
 }
 
 const panel = (page: Page) => page.locator('aside.panel');
+const select = (page: Page, name: string) =>
+  // Labels move every frame, so click through the DOM rather than waiting for them to settle.
+  page.getByRole('button', { name, exact: true }).evaluate((el: HTMLElement) => el.click());
 
 test('renders the solar system and opens the Mars panel', async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto('/');
 
   await expect(page.locator('.stage canvas')).toBeVisible();
-  const mars = page.getByRole('button', { name: 'Mars', exact: true });
-  await expect(mars).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
   await expect(panel(page)).toContainText('From Earth');
 
-  // Labels move every frame, so click through the DOM rather than waiting for them to settle.
-  await mars.evaluate((el: HTMLElement) => el.click());
+  await select(page, 'Mars');
   await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
   await expect(panel(page)).toContainText('Latest Curiosity weather report');
   await expect(panel(page)).toContainText('Signal delay');
@@ -40,34 +43,50 @@ test('renders the solar system and opens the Mars panel', async ({ page }) => {
   await expect(panel(page).getByRole('heading', { name: 'Pick a world' })).toBeVisible();
 
   expect(errors).toEqual([]);
+  expect(upstream).toEqual([]);
 });
 
-test('shows live REMS weather and logs the fetch', async ({ page }) => {
+test('shows Mars weather from the data file and logs it', async ({ page }) => {
   const logs: string[] = [];
   page.on('console', (m) => m.text().startsWith('[weather]') && logs.push(m.text()));
   await page.goto('/');
-  await page.getByRole('button', { name: 'Mars', exact: true }).evaluate((el: HTMLElement) => el.click());
+  await select(page, 'Mars');
 
-  await expect(page.getByTestId('weather-source')).toHaveText("Fetched just now from NASA's REMS feed.");
+  await expect(page.getByTestId('weather-source')).toHaveText(/^From NASA's REMS feed, checked .+ ago\.$/);
   await expect(panel(page)).toContainText('-71 °C to -5 °C');
   await expect(panel(page)).toContainText('777 Pa');
   await expect(panel(page)).toContainText('06:46–18:51');
-  expect(logs[0]).toMatch(/^\[weather\] GET https:\/\/mars\.nasa\.gov/);
-  expect(logs.some((l) => l.includes('HTTP 200'))).toBe(true);
-  expect(logs.some((l) => l.includes('live report: sol 4995'))).toBe(true);
+  expect(logs[0]).toMatch(/^\[weather\] GET .*\/data\/weather\.json$/);
+  await expect.poll(() => logs.join('\n')).toMatch(/\[weather\] data built 2026-10-13T13:00:00.000Z/);
+  expect(upstream).toEqual([]);
 });
 
-test('falls back to the stored report when NASA is unreachable', async ({ page }) => {
-  await page.unroute(FEED);
-  await page.route(FEED, (route) => route.abort('connectionfailed'));
+test('shows live solar wind on the Sun panel', async ({ page }) => {
+  await page.goto('/');
+  await select(page, 'Sun');
+
+  const card = page.getByTestId('solar-wind');
+  await expect(card).toContainText('538 km/s');
+  await expect(card).toContainText('Last 24 h: 512–538 km/s');
+  await expect(card).toContainText('5.1 protons/cm³');
+  await expect(card).toContainText('by DSCOVR');
+  await expect(card.getByRole('img')).toBeVisible();
+});
+
+test('falls back to the stored report when the data file is missing', async ({ page }) => {
+  await page.unroute(DATA);
+  await page.route(DATA, (route) => route.fulfill({ status: 404, body: 'Not found' }));
   const warnings: string[] = [];
   page.on('console', (m) => m.type() === 'warning' && warnings.push(m.text()));
   await page.goto('/');
-  await page.getByRole('button', { name: 'Mars', exact: true }).evaluate((el: HTMLElement) => el.click());
+  await select(page, 'Mars');
 
   await expect(page.getByTestId('weather-source')).toContainText('Stored report from 13 Oct 2026');
   await expect(panel(page)).toContainText('Sol 4995');
-  await expect.poll(() => warnings.join('\n')).toMatch(/\[weather\] using stored report \(sol 4995\): request failed/);
+  await expect.poll(() => warnings.join('\n')).toMatch(/\[weather\] using stored report: HTTP 404/);
+
+  await select(page, 'Sun');
+  await expect(page.getByTestId('solar-wind')).toHaveCount(0);
 });
 
 test('visible planet labels never overlap', async ({ page }) => {
