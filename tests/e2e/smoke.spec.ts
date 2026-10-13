@@ -136,7 +136,7 @@ test('shows computed sunlight and seasons for each planet', async ({ page }) => 
   await expect(section).toContainText(/Next\s*Northern (spring|summer|autumn|winter) (equinox|solstice)/);
 
   await expect(section).toContainText(/Over its orbit\s*490–713 W\/m²/);
-  await expect(panel(page)).toContainText(/Season then\s*late northern winter/);
+  await expect(panel(page)).toContainText(/Season on that sol\s*late northern winter/);
 
   await select(page, 'Mercury');
   await expect(section).toContainText(/Over its orbit\s*6,249 W\/m² to 14\.4 kW\/m²/);

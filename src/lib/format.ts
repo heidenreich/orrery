@@ -4,7 +4,14 @@ export function ago(iso: string, now: number): string {
   if (min < 1) return 'just now';
   if (min < 60) return `${min} min ago`;
   const h = Math.round(min / 60);
-  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`;
+  if (h < 48) return `${h} h ago`;
+  // Days up to two months, then months, then years, so a stalled feed never reads "400 days ago".
+  const days = Math.round(h / 24);
+  if (days < 60) return `${days} days ago`;
+  const months = Math.round(days / 30.44);
+  if (months < 18) return `${months} months ago`;
+  const years = Math.floor(days / 365.25);
+  return `${years} years ago`;
 }
 
 /** Typographic minus for negative numbers: "−71". */

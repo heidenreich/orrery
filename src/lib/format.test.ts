@@ -29,5 +29,8 @@ describe('format', () => {
     expect(ago('2026-10-13T14:59:50Z', now)).toBe('just now');
     expect(ago('2026-10-13T14:48:00Z', now)).toBe('12 min ago');
     expect(ago('2026-08-25T00:00:00Z', now)).toBe('50 days ago');
+    expect(ago('2026-07-13T15:00:00Z', now)).toBe('3 months ago');
+    expect(ago('2025-09-08T15:00:00Z', now)).toBe('13 months ago');
+    expect(ago('2024-04-01T00:00:00Z', now)).toBe('2 years ago');
   });
 });

@@ -21,6 +21,10 @@
   let selected: BodyId | null = $state(null);
   let playing = $state(true);
   let daysPerSec = $state(REAL_TIME);
+  const SITE_URL = 'https://heidenreich.github.io/orrery';
+  const DESCRIPTION =
+    'Interactive 3D solar system: real planet positions, distances, sunlight and seasons, with live solar wind and Mars weather.';
+
   let scale: ScaleMode = $state('compressed');
   let resetToNow = $state(0);
   // Null until the page runs in the browser, so the prerendered HTML never carries the build date.
@@ -95,7 +99,17 @@
 
 <svelte:head>
   <title>Solar System Orrery</title>
-  <meta name="description" content="Interactive 3D solar system: real planet positions, distances, sunlight and seasons, with live solar wind and Mars weather." />
+  <meta name="description" content={DESCRIPTION} />
+  <!-- Link previews need absolute URLs, so these name the deployed site. -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="{SITE_URL}/" />
+  <meta property="og:title" content="Solar System Orrery" />
+  <meta property="og:description" content={DESCRIPTION} />
+  <meta property="og:image" content="{SITE_URL}/og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Saturn in the 3D view, with its panel of distances, sunlight and seasons" />
+  <meta name="twitter:card" content="summary_large_image" />
 </svelte:head>
 
 <svelte:window {onkeydown} />
@@ -143,6 +157,7 @@
 <div class="controls surface" role="toolbar" aria-label="Time and view controls" data-label-avoid>
   <select
     class="ctl"
+    name="world"
     aria-label="World"
     bind:this={picker}
     value={selected ?? ''}
@@ -155,7 +170,7 @@
     <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
     {playing ? 'Pause' : 'Play'}
   </button>
-  <select class="ctl" aria-label="Playback speed" bind:value={daysPerSec} onchange={() => (playing = true)}>
+  <select class="ctl" name="speed" aria-label="Playback speed" bind:value={daysPerSec} onchange={() => (playing = true)}>
     {#each SPEEDS as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
   </select>
   <button class="ctl" onclick={goLive} disabled={status === 'Live'}>Now</button>

@@ -7,4 +7,4 @@ https://creativecommons.org/licenses/by/4.0/
 Obtained from the Qt 3D project's copy (qt/qt3d, tests/manual/planets-qml/images/solarsystemscope),
 where Qt notes: the ring texture was created from Solar System Scope's reference rectangle file.
 
-Changes made here: converted to WebP; the ring image is cropped to one of its two identical halves.
+Changes made here: converted to WebP (Mercury also scaled to 1024x512); the ring image is cropped to one of its two identical halves.

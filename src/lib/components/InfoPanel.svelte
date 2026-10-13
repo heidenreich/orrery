@@ -156,10 +156,10 @@
             <dd>{range(report.minGroundTemp, report.maxGroundTemp)}</dd>
           {/if}
           {#if report.pressure !== null}<dt>Pressure</dt><dd>{report.pressure.toLocaleString('en-US')} Pa</dd>{/if}
-          {#if report.sunrise && report.sunset}<dt>Daylight</dt><dd>{report.sunrise}–{report.sunset}</dd>{/if}
+          {#if report.sunrise && report.sunset}<dt>Daylight (local)</dt><dd>{report.sunrise}–{report.sunset}</dd>{/if}
           {#if report.opacity}<dt>Sky</dt><dd>{report.opacity}</dd>{/if}
           {#if report.uvIndex}<dt>UV level</dt><dd>{uvText(report.uvIndex)}</dd>{/if}
-          {#if report.ls !== null}<dt>Season then</dt><dd>{seasonWords(report.ls)}</dd>{/if}
+          {#if report.ls !== null}<dt>Season on that sol</dt><dd>{seasonWords(report.ls)}</dd>{/if}
         </dl>
         {#if weather?.mars.history.length}<MarsHistory history={weather.mars.history} />{/if}
         <p class="note" data-testid="weather-source">

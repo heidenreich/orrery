@@ -31,6 +31,12 @@ describe('built site', () => {
     expect(files.filter((f) => !existsSync(join(dir, f)))).toEqual([]);
   });
 
+  it('ships the link preview image the page names', () => {
+    const url = read('index.html').match(/property="og:image" content="([^"]+)"/)?.[1];
+    expect(url).toMatch(/^https:\/\/heidenreich\.github\.io\/orrery\/og\.jpg$/);
+    expect(existsSync(join(dir, 'og.jpg'))).toBe(true);
+  });
+
   it('ships every texture image the scripts ask for, with its licence', () => {
     const scripts = readdirSync(join(dir, '_app'), { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.js'));
     const wanted = new Set(scripts.flatMap((f) => [...read(join('_app', f)).matchAll(/textures\/([\w-]+\.webp)/g)].map((m) => m[1])));
