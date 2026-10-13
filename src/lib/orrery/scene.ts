@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLANETS, SUN, planetPositions, type BodyId, type Planet, type PlanetId, type PositionsAU } from './bodies';
-import { orbitPath, type Vec3 } from './orbits';
+import { orbitPath } from './orbits';
+import { poleQuaternion, toScene } from './axes';
+import { SPIN_TILT } from './seasons';
 import { REAL_TIME, SIM_MAX_MS, SIM_MIN_MS } from './time';
 import { glowTexture, planetTexture, ringTexture, seededRandom } from './textures';
 
-const DEG = Math.PI / 180;
 const DAY_MS = 86_400_000;
 const SUN_SIZE = 2.6;
 const LABEL_HEIGHT = 26;
@@ -13,6 +14,12 @@ const ORBIT_COLOR = 0x6b7799;
 const ORBIT_SELECTED = 0xf0b65a;
 /** How often to re-read the page areas labels must avoid (header, panel, toolbar). */
 const AVOID_REFRESH_MS = 300;
+const DEG = Math.PI / 180;
+/** Matches the CSS: at this width and below, the info panel becomes a bottom sheet. */
+const PHONE_MAX_WIDTH = 640;
+/** Width the info panel takes on the right on wider screens: 340 px plus its 16 px margin. */
+const PANEL_COLUMN = 356;
+const NEPTUNE_APHELION_AU = 30.4;
 
 // When labels overlap, the earlier body in this list keeps its label.
 const LABEL_PRIORITY: BodyId[] = ['sun', 'earth', 'jupiter', 'saturn', 'mars', 'venus', 'mercury', 'uranus', 'neptune'];
@@ -59,8 +66,6 @@ interface PlanetNode {
   line: THREE.Line;
 }
 
-// Ecliptic (z = north) to scene axes (y = up).
-const toScene = (p: Vec3) => new THREE.Vector3(p.x, p.z, -p.y);
 const sizeOf = (km: number) => 0.5 * Math.pow(km / 6371, 0.4) + 0.15;
 const fCompressed = (r: number) => 18 * Math.sqrt(r);
 const fTrue = (r: number) => 12 * r;
@@ -92,6 +97,8 @@ export class OrreryScene {
   private lastTick = 0;
   private lastOrbitMs: number | null = null;
   private lastMix = -1;
+  /** Fraction of the canvas width and height the info panel leaves uncovered (see resize()). */
+  private free = { x: 1, y: 1 };
   private resizeObserver!: ResizeObserver;
   private downAt: [number, number] | null = null;
   private labelWidths = new Map<BodyId, number>();
@@ -277,8 +284,21 @@ export class OrreryScene {
     else this.desiredDist = this.node(id).size * 9 + 2.5;
   }
 
+  // Point each planet's spin axis along its IAU north pole, the same pole the panel's seasons and
+  // "Sun overhead at" come from. The mesh spins about the holder's local y (frame()), so it turns
+  // about the tilted axis, and the rings, also children of the holder, stay equatorial.
+  private orientPoles() {
+    for (const n of this.nodes) {
+      n.holder.quaternion.copy(poleQuaternion(n.planet.id as PlanetId, this.simMs));
+    }
+  }
+
+  // Compressed, the overview frames the inner and middle planets. To scale, it backs off until
+  // Neptune's whole orbit fits across the free part of the screen.
   private overviewDistance() {
-    return this.scaleGoal ? 520 : 125;
+    if (!this.scaleGoal) return 125;
+    const halfWidth = Math.tan((this.camera.fov * DEG) / 2) * this.camera.aspect * this.free.x;
+    return Math.min(this.controls.maxDistance, (fTrue(NEPTUNE_APHELION_AU) * 1.12) / halfWidth);
   }
 
   private node(id: BodyId) {
@@ -330,7 +350,6 @@ export class OrreryScene {
     const holder = new THREE.Group();
     holder.add(mesh);
     let ring: THREE.Mesh | undefined;
-    if (p.tilt) holder.rotation.z = p.tilt * DEG;
     if (p.rings) {
       const inner = size * 1.25, outer = size * 2.3;
       const rg = new THREE.RingGeometry(inner, outer, 128, 1);
@@ -381,9 +400,10 @@ export class OrreryScene {
     if (!w || !h) return;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
-    // On phones the info panel is a bottom sheet, so render the focus point higher up.
-    if (w <= 640) this.camera.setViewOffset(w, h, 0, h * 0.25, w, h);
-    else this.camera.clearViewOffset();
+    // Centre the view in the space the info panel leaves free: on phones it is a bottom sheet, so
+    // the focus point sits higher up; wider, it is a column on the right, so it sits further left.
+    this.free = w <= PHONE_MAX_WIDTH ? { x: 1, y: 0.5 } : { x: (w - PANEL_COLUMN) / w, y: 1 };
+    this.camera.setViewOffset(w, h, ((1 - this.free.x) * w) / 2, ((1 - this.free.y) * h) / 2, w, h);
     this.camera.updateProjectionMatrix();
   }
 
@@ -447,13 +467,15 @@ export class OrreryScene {
     const spin = spinning ? step : 0;
     for (const n of this.nodes) {
       n.holder.position.copy(this.scaled(toScene(this.positions[n.planet.id as PlanetId])));
-      n.mesh.rotation.y += spin * 0.6;
+      // Venus and Uranus turn backwards about their IAU north pole.
+      n.mesh.rotation.y += spin * (SPIN_TILT[n.planet.id as PlanetId] ? -0.6 : 0.6);
     }
     this.sunMesh.rotation.y += spin * 0.05;
 
-    // Orbits drift slowly; redraw on scale changes or after a decade of simulated time.
+    // Orbits and poles drift slowly; redraw on scale changes or after a decade of simulated time.
     if (this.lastMix !== this.scaleMix || this.lastOrbitMs === null || Math.abs(this.simMs - this.lastOrbitMs) > 3650 * DAY_MS) {
       this.updateOrbits();
+      this.orientPoles();
       this.lastMix = this.scaleMix;
       this.lastOrbitMs = this.simMs;
     }

@@ -28,8 +28,6 @@ export interface Planet extends Body, OrbitalElements {
   color: string;
   bands?: string[];
   rings?: boolean;
-  /** Axial tilt in degrees, when it matters visually. */
-  tilt?: number;
 }
 
 export const SUN: Body = {
@@ -100,7 +98,7 @@ export const PLANETS: Planet[] = [
   },
   {
     id: 'saturn', name: 'Saturn', kind: 'Gas giant', color: '#d9c08d', radiusKm: 58232,
-    bands: ['#e4d1a6', '#c8ab76', '#efe0bd', '#bfa06c'], rings: true, tilt: 26.7,
+    bands: ['#e4d1a6', '#c8ab76', '#efe0bd', '#bfa06c'], rings: true,
     el: [9.53667594, 0.05386179, 2.48599187, 49.95424423, 92.59887831, 113.66242448],
     rt: [-0.0012506, -0.00050991, 0.00193609, 1222.49362201, -0.41897216, -0.28867794],
     year: '29.5 years', day: '10 h 33 m', temp: '≈ −140 °C at 1 bar', pressure: 'No surface',
@@ -112,7 +110,7 @@ export const PLANETS: Planet[] = [
   },
   {
     id: 'uranus', name: 'Uranus', kind: 'Ice giant', color: '#9fd3d8', radiusKm: 25362,
-    bands: ['#a6dbe0', '#93c8cf', '#b0e2e6'], tilt: 97.8,
+    bands: ['#a6dbe0', '#93c8cf', '#b0e2e6'],
     el: [19.18916464, 0.04725744, 0.77263783, 313.23810451, 170.9542763, 74.01692503],
     rt: [-0.00196176, -0.00004397, -0.00242939, 428.48202785, 0.40805281, 0.04240589],
     year: '84 years', day: '17 h 14 m, retrograde', temp: '≈ −195 °C at 1 bar', pressure: 'No surface',
