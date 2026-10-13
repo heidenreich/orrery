@@ -29,10 +29,11 @@ export async function fetchJson(url: string, opts: FetchOptions = {}): Promise<F
     text = await res.text();
   } catch (err) {
     // A CORS refusal and an offline network look the same here: a TypeError with no status.
-    return {
-      ok: false,
-      reason: controller.signal.aborted ? `timed out after ${timeoutMs} ms` : `request failed (${String(err)})`
-    };
+    if (controller.signal.aborted) return { ok: false, reason: `timed out after ${timeoutMs} ms` };
+    // Node's fetch hides the useful part (DNS failure, refused connection) in err.cause.
+    const cause = (err as { cause?: { code?: string; message?: string } })?.cause;
+    const detail = cause?.code ?? cause?.message;
+    return { ok: false, reason: `request failed (${String(err)}${detail ? `: ${detail}` : ''})` };
   } finally {
     clearTimeout(timer);
   }
@@ -47,6 +48,9 @@ export async function fetchJson(url: string, opts: FetchOptions = {}): Promise<F
   try {
     return { ok: true, body: JSON.parse(text), bytes: text.length, ms };
   } catch (err) {
-    return { ok: false, reason: `response is not JSON (${String(err)})` };
+    // Log the parser's message (it quotes the start of the body), but keep it out of the
+    // reason, which ends up in the public data file.
+    log.warn(tag, `response is not JSON: ${String(err)}`);
+    return { ok: false, reason: 'response is not JSON' };
   }
 }

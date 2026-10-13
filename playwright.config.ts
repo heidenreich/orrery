@@ -23,7 +23,8 @@ export default defineConfig({
     // ORRERY_OFFLINE skips the NASA and NOAA requests at build time; tests serve their own data file.
     command: 'ORRERY_OFFLINE=1 npm run build && npm run preview -- --port 4173 --strictPort',
     url: 'http://localhost:4173',
-    reuseExistingServer: !process.env.CI,
+    // Always build and serve fresh: reusing a server left running can test an old build.
+    reuseExistingServer: false,
     timeout: 120_000
   }
 });

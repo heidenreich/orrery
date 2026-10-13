@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLANETS, SUN, planetPositions, type BodyId, type Planet, type PlanetId, type PositionsAU } from './bodies';
 import { orbitPath, type Vec3 } from './orbits';
-import { REAL_TIME } from './time';
+import { REAL_TIME, SIM_MAX_MS, SIM_MIN_MS } from './time';
 import { glowTexture, planetTexture, ringTexture, seededRandom } from './textures';
 
 const DEG = Math.PI / 180;
@@ -25,7 +25,16 @@ export interface SceneOptions {
   onSelect: (id: BodyId) => void;
   /** Called a few times per second with the simulated time and real positions. */
   onTick: (simMs: number, positions: PositionsAU) => void;
+  /** Playback reached SIM_MIN_MS or SIM_MAX_MS and stopped there. */
+  onLimit?: () => void;
+  /** The browser dropped the WebGL context (false) or gave it back (true). */
+  onContext?: (available: boolean) => void;
 }
+
+/** Frame spacing when the only motion is slow planet spin in real time (about 30 fps). */
+const SPIN_ONLY_FRAME_MS = 33;
+/** While playing with nothing visibly moving, redraw this often so real-time positions stay current. */
+const IDLE_FRAME_MS = 1000;
 
 interface PlanetNode {
   planet: Planet;
@@ -50,8 +59,9 @@ export class OrreryScene {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(50, 1, 0.05, 6000);
-  private controls: OrbitControls;
-  private sunMesh: THREE.Mesh;
+  // Assigned in setUp(), called from the constructor.
+  private controls!: OrbitControls;
+  private sunMesh!: THREE.Mesh;
   private nodes: PlanetNode[] = [];
   private beltAU: THREE.Vector3[] = [];
   private beltGeo = new THREE.BufferGeometry();
@@ -67,11 +77,16 @@ export class OrreryScene {
   private lastTick = 0;
   private lastOrbitMs: number | null = null;
   private lastMix = -1;
-  private resizeObserver: ResizeObserver;
+  private resizeObserver!: ResizeObserver;
   private downAt: [number, number] | null = null;
   private labelWidths = new Map<BodyId, number>();
   private motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   private reduceMotion = this.motionQuery.matches;
+  // Rendering on demand: see frame().
+  private needsRender = true;
+  private controlsMoving = true;
+  private lastRender = 0;
+  private contextLost = false;
 
   /** Throws if WebGL is unavailable. */
   constructor(opts: SceneOptions) {
@@ -79,6 +94,19 @@ export class OrreryScene {
     const rand = seededRandom(7);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    try {
+      this.setUp(opts, rand);
+    } catch (err) {
+      // Don't leave a half-built canvas behind if anything after the renderer fails.
+      this.renderer.dispose();
+      this.renderer.domElement.remove();
+      throw err;
+    }
+    this.positions = planetPositions(this.simMs);
+    this.raf = requestAnimationFrame(this.frame);
+  }
+
+  private setUp(opts: SceneOptions, rand: () => number) {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0x070a14, 1);
     opts.container.appendChild(this.renderer.domElement);
@@ -89,6 +117,7 @@ export class OrreryScene {
     this.controls.dampingFactor = 0.08;
     this.controls.minDistance = 1.2;
     this.controls.maxDistance = 1800;
+    this.controls.addEventListener('change', this.invalidate);
 
     this.scene.add(new THREE.AmbientLight(0x3a4466, 1.7));
     this.scene.add(new THREE.PointLight(0xfff1dc, 5, 0, 0));
@@ -115,23 +144,45 @@ export class OrreryScene {
     this.addBelt(rand);
     for (const p of PLANETS) this.addPlanet(p, rand);
 
-    this.positions = planetPositions(this.simMs);
-
-    this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown);
-    this.renderer.domElement.addEventListener('pointerup', this.onPointerUp);
+    const canvas = this.renderer.domElement;
+    canvas.addEventListener('pointerdown', this.onPointerDown);
+    canvas.addEventListener('pointerup', this.onPointerUp);
+    canvas.addEventListener('webglcontextlost', this.onContextLost);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
     this.motionQuery.addEventListener('change', this.onMotionChange);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(opts.container);
     this.resize();
-    this.raf = requestAnimationFrame(this.frame);
   }
+
+  /** Ask for a redraw on the next frame. */
+  private invalidate = () => {
+    this.needsRender = true;
+  };
+
+  // three.js rebuilds its GPU state when the context comes back; until then, don't draw.
+  private onContextLost = (e: Event) => {
+    e.preventDefault();
+    this.contextLost = true;
+    this.opts.onContext?.(false);
+  };
+
+  private onContextRestored = () => {
+    this.contextLost = false;
+    this.needsRender = true;
+    this.opts.onContext?.(true);
+  };
 
   destroy() {
     cancelAnimationFrame(this.raf);
     this.resizeObserver.disconnect();
-    this.renderer.domElement.removeEventListener('pointerdown', this.onPointerDown);
-    this.renderer.domElement.removeEventListener('pointerup', this.onPointerUp);
+    const canvas = this.renderer.domElement;
+    canvas.removeEventListener('pointerdown', this.onPointerDown);
+    canvas.removeEventListener('pointerup', this.onPointerUp);
+    canvas.removeEventListener('webglcontextlost', this.onContextLost);
+    canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
     this.motionQuery.removeEventListener('change', this.onMotionChange);
+    this.controls.removeEventListener('change', this.invalidate);
     this.controls.dispose();
     this.scene.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.Line || o instanceof THREE.Points || o instanceof THREE.Sprite) {
@@ -148,11 +199,13 @@ export class OrreryScene {
   }
 
   setScale(mode: ScaleMode) {
+    this.needsRender = true;
     this.scaleGoal = mode === 'true' ? 1 : 0;
     if (!this.selected) this.desiredDist = this.overviewDistance();
   }
 
   select(id: BodyId | null) {
+    this.needsRender = true;
     this.selected = id;
     // Highlight only the selected planet's orbit.
     for (const n of this.nodes) {
@@ -259,9 +312,12 @@ export class OrreryScene {
       b.set([s.x, s.y, s.z], i * 3);
     });
     this.beltGeo.attributes.position.needsUpdate = true;
+    // The belt spreads further out in true scale; without new bounds it can be culled when zoomed in.
+    this.beltGeo.computeBoundingSphere();
   }
 
   private resize() {
+    this.needsRender = true;
     const { clientWidth: w, clientHeight: h } = this.opts.container;
     if (!w || !h) return;
     this.renderer.setSize(w, h, false);
@@ -274,6 +330,7 @@ export class OrreryScene {
 
   private onMotionChange = (e: MediaQueryListEvent) => {
     this.reduceMotion = e.matches;
+    this.needsRender = true;
   };
 
   private onPointerDown = (e: PointerEvent) => {
@@ -291,22 +348,44 @@ export class OrreryScene {
     if (hit) this.opts.onSelect(hit.object.userData.id as BodyId);
   };
 
+  // Draws only when something on screen can change: while paused with the camera still, nothing is
+  // drawn; in real time, where the only motion is slow planet spin, about 30 times a second.
   private frame = (now: number) => {
+    this.raf = requestAnimationFrame(this.frame);
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     if (this.playing) {
       // Real time follows the system clock exactly, so it stays correct after the tab was in the background.
       if (this.daysPerSec === REAL_TIME) this.simMs = Date.now();
       else this.simMs += this.daysPerSec * DAY_MS * dt;
+      if (this.simMs > SIM_MAX_MS || this.simMs < SIM_MIN_MS) {
+        this.simMs = Math.min(SIM_MAX_MS, Math.max(SIM_MIN_MS, this.simMs));
+        this.playing = false;
+        this.opts.onLimit?.();
+      }
     }
 
+    const fast = this.playing && this.daysPerSec !== REAL_TIME;
+    const spinning = this.playing && !this.reduceMotion;
+    const busy = fast || this.needsRender || this.controlsMoving || this.scaleMix !== this.scaleGoal || this.desiredDist !== null;
+    const since = now - this.lastRender;
+    const due = busy || (spinning ? since >= SPIN_ONLY_FRAME_MS : this.playing && since >= IDLE_FRAME_MS);
+    if (this.contextLost || !due) {
+      if (now - this.lastTick > 250) {
+        this.lastTick = now;
+        this.opts.onTick(this.simMs, this.positions);
+      }
+      return;
+    }
+    const step = Math.min(0.1, since / 1000);
+
     if (this.scaleMix !== this.scaleGoal) {
-      this.scaleMix += (this.scaleGoal - this.scaleMix) * this.ease(dt * 4);
+      this.scaleMix += (this.scaleGoal - this.scaleMix) * this.ease(step * 4);
       if (Math.abs(this.scaleGoal - this.scaleMix) < 0.002) this.scaleMix = this.scaleGoal;
     }
 
     this.positions = planetPositions(this.simMs);
-    const spin = this.reduceMotion ? 0 : dt;
+    const spin = spinning ? step : 0;
     for (const n of this.nodes) {
       n.holder.position.copy(this.scaled(toScene(this.positions[n.planet.id as PlanetId])));
       n.mesh.rotation.y += spin * 0.6;
@@ -320,8 +399,9 @@ export class OrreryScene {
       this.lastOrbitMs = this.simMs;
     }
 
-    this.followSelection(dt);
-    this.controls.update();
+    this.followSelection(step);
+    // update() reports whether the camera moved (including damping after a drag ends).
+    this.controlsMoving = this.controls.update();
     this.placeLabels();
 
     if (now - this.lastTick > 250) {
@@ -329,7 +409,8 @@ export class OrreryScene {
       this.opts.onTick(this.simMs, this.positions);
     }
     this.renderer.render(this.scene, this.camera);
-    this.raf = requestAnimationFrame(this.frame);
+    this.lastRender = now;
+    this.needsRender = false;
   };
 
   /** Fraction of the remaining distance to cover this frame; 1 (jump) when motion is reduced. */

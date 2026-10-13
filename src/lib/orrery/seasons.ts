@@ -6,7 +6,7 @@
 // "North" is the IAU north pole (the one on the north side of the solar system's invariable plane),
 // so Venus and Uranus, which spin backwards, measure 2.6° and 82.2° from their orbit normals.
 
-import { PLANETS, type PlanetId } from './bodies';
+import { planetById, type PlanetId } from './bodies';
 import { centuriesSinceJ2000, heliocentric, length, orbitShape, type Vec3 } from './orbits';
 
 const DEG = Math.PI / 180;
@@ -53,7 +53,7 @@ export function northPole(id: PlanetId, ms: number): Vec3 {
   return { x, y: y * Math.cos(OBLIQUITY) + z * Math.sin(OBLIQUITY), z: -y * Math.sin(OBLIQUITY) + z * Math.cos(OBLIQUITY) };
 }
 
-const planet = (id: PlanetId) => PLANETS.find((p) => p.id === id)!;
+const planet = planetById;
 
 /** Angle between the IAU north pole and the orbit normal, degrees (Uranus ≈ 82°, Venus ≈ 2.6°; see above). */
 export function axialTilt(id: PlanetId, ms: number): number {
@@ -144,9 +144,25 @@ export function seasons(id: PlanetId, ms: number): Seasons {
     subsolarLatitude,
     north,
     south: OPPOSITE[north],
-    next: { name: EVENTS[(quarter + 1) % 4], ms: nextLs(id, ms, ((quarter + 1) % 4) * 90, yearDays) },
+    next: { name: EVENTS[(quarter + 1) % 4], ms: nextEvent(id, ms, quarter, yearDays) },
     seasonDays: yearDays / 4
   };
+}
+
+// The next equinox or solstice only changes when the planet crosses one, but the panel asks
+// several times a second. Remember the answer per planet while it still applies.
+const nextEventCache = new Map<PlanetId, { quarter: number; ms: number }>();
+
+/** Forget cached equinox and solstice searches (for tests). */
+export const clearSeasonCache = () => nextEventCache.clear();
+
+function nextEvent(id: PlanetId, ms: number, quarter: number, yearDays: number): number {
+  const cached = nextEventCache.get(id);
+  // Still valid while we are in the same quarter, before that event, and within the same orbit.
+  if (cached && cached.quarter === quarter && ms < cached.ms && cached.ms - ms < yearDays * DAY_MS) return cached.ms;
+  const next = nextLs(id, ms, ((quarter + 1) % 4) * 90, yearDays);
+  nextEventCache.set(id, { quarter, ms: next });
+  return next;
 }
 
 /** When Ls next reaches `target` (0, 90, 180 or 270): step forward, then bisect to about a minute. */

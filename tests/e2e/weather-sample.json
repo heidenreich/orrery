@@ -21,6 +21,48 @@
     },
     "history": [
       {
+        "sol": 4988,
+        "earthDate": "2026-08-18",
+        "minTemp": -74,
+        "maxTemp": -3,
+        "pressure": 777
+      },
+      {
+        "sol": 4989,
+        "earthDate": "2026-08-19",
+        "minTemp": -73,
+        "maxTemp": -6,
+        "pressure": 777
+      },
+      {
+        "sol": 4990,
+        "earthDate": "2026-08-20",
+        "minTemp": null,
+        "maxTemp": null,
+        "pressure": null
+      },
+      {
+        "sol": 4991,
+        "earthDate": "2026-08-21",
+        "minTemp": -75,
+        "maxTemp": -4,
+        "pressure": 777
+      },
+      {
+        "sol": 4992,
+        "earthDate": "2026-08-22",
+        "minTemp": -72,
+        "maxTemp": -2,
+        "pressure": 777
+      },
+      {
+        "sol": 4993,
+        "earthDate": "2026-08-23",
+        "minTemp": -70,
+        "maxTemp": -7,
+        "pressure": 777
+      },
+      {
         "sol": 4994,
         "earthDate": "2026-08-24",
         "minTemp": null,

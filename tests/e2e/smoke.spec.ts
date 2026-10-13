@@ -75,6 +75,12 @@ test('shows Mars weather from the data file and logs it', async ({ page }) => {
   await expect(panel(page)).toContainText('06:46–18:51');
   await expect(panel(page)).toContainText(/Ground temperature\s*−84 °C to 4 °C/);
   await expect(panel(page)).toContainText(/UV level\s*Moderate/);
+  const history = page.getByTestId('mars-history');
+  await expect(history).toContainText('Sols 4988–4995');
+  await expect(history).toContainText('\u221275 °C to \u22122 °C');
+  // Two missing sols split the highs into two lines and leave the newest sol on its own as a dot.
+  await expect(history.locator('polyline.high')).toHaveCount(2);
+  await expect(history.locator('circle.high')).toHaveCount(1);
   expect(logs[0]).toMatch(/^\[weather\] GET .*\/data\/weather\.json$/);
   await expect.poll(() => logs.join('\n')).toMatch(/\[weather\] data built \d{4}-\d{2}-\d{2}T[\d:.]+Z/);
   expect(upstream).toEqual([]);

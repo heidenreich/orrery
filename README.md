@@ -90,9 +90,21 @@ Every planet panel shows sunlight and seasons for the date on the clock, with
 no data source: sunlight is 1361 W/m² divided by the square of the distance from
 the Sun, and seasons come from the planet's IAU pole direction against the
 direction of the Sun (solar longitude Ls and the latitude where the Sun is
-overhead). Checked against Curiosity's reported Ls (341.6° on 25 Aug 2026, to
-0.01°) and Earth's 2026 equinox and solstices. Mercury, Venus and Jupiter, tilted
-under 5°, are shown as having barely any seasons.
+overhead). Mercury, Venus and Jupiter, tilted under 5°, are shown as having
+barely any seasons.
+
+Accuracy, as checked by the unit tests:
+
+- Mars Ls within 0.02° of the Allison & McEwen (2000) formula (341.558° on
+  25 Aug 2026; Curiosity's feed rounds it to 341), and Mars's next northern
+  spring equinox within an hour of that formula's date.
+- Earth's 2026 equinox and solstices within about 15 minutes, and the next
+  December solstice within 30 minutes.
+- Axial tilts within 0.05° of published values.
+- Curiosity's sol numbering exactly, counted in Gale Crater local time.
+
+The orbit model (JPL's approximate elements) is fitted for 1800–2050. The page
+warns outside that range and stops playback at the years 1000 and 3000.
 
 ## Data
 

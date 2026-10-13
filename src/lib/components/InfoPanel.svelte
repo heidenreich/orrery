@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
+  import MarsHistory from '$lib/components/MarsHistory.svelte';
   import SolarWindCard from '$lib/components/SolarWindCard.svelte';
   import SunAndSeasons from '$lib/components/SunAndSeasons.svelte';
   import { ago, celsius, km, lightTime, seasonWords } from '$lib/format';
@@ -156,6 +157,7 @@
           {#if report.uvIndex}<dt>UV level</dt><dd>{uvText(report.uvIndex)}</dd>{/if}
           {#if report.ls !== null}<dt>Season then</dt><dd>{seasonWords(report.ls)}</dd>{/if}
         </dl>
+        {#if weather?.mars.history.length}<MarsHistory history={weather.mars.history} />{/if}
         <p class="note" data-testid="weather-source">
           {#if !weather}
             Loading weather data…

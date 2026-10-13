@@ -8,7 +8,7 @@
   import { ALL_BODIES, bodyById, planetPositions, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { VALID_YEARS } from '$lib/orrery/orbits';
   import type { ScaleMode } from '$lib/orrery/scene';
-  import { LIVE_TOLERANCE_MS, REAL_TIME } from '$lib/orrery/time';
+  import { LIVE_TOLERANCE_MS, REAL_TIME, SIM_MAX_MS, SIM_MIN_MS } from '$lib/orrery/time';
 
   const SPEEDS = [
     { value: REAL_TIME, label: 'Real time' },
@@ -33,6 +33,7 @@
   const fmtTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   const year = $derived(simMs === null ? null : new Date(simMs).getUTCFullYear());
   const outOfRange = $derived(year !== null && (year < VALID_YEARS.from || year > VALID_YEARS.to));
+  const atLimit = $derived(simMs !== null && (simMs <= SIM_MIN_MS || simMs >= SIM_MAX_MS));
 
   // The actual time, refreshed every second, to tell whether the clock shows now.
   let now = $state(Date.now());
@@ -108,6 +109,7 @@
   {scale}
   {resetToNow}
   onselect={(id) => (selected = id)}
+  onlimit={() => (playing = false)}
   ontick={(ms, pos) => {
     lastTick = Date.now();
     simMs = ms;
@@ -133,7 +135,9 @@
   {#if scale === 'true'}
     <p class="caption">True distances: the inner planets crowd close to the Sun. Zoom in to see them.</p>
   {/if}
-  {#if outOfRange}
+  {#if atLimit}
+    <div class="chip" role="status">Stopped at the year {new Date(simMs ?? 0).getUTCFullYear()}: the orbit model isn't meaningful beyond 1000–3000</div>
+  {:else if outOfRange}
     <div class="chip">Outside {VALID_YEARS.from}–{VALID_YEARS.to}: positions are approximate</div>
   {/if}
 </div>

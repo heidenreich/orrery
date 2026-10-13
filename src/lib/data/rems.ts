@@ -1,6 +1,6 @@
 // Parser for NASA's Curiosity REMS weather feed.
 // The feed is undocumented: every value is a string, and missing readings appear as "--".
-// It sends the whole mission history (4745 sols as of 2026-10-13), newest first.
+// It sends the whole mission history, newest first: 4745 entries on 2026-10-13, ending at sol 4995.
 
 import type { Logger } from './fetch-json';
 import type { MarsReport } from './mars-report';

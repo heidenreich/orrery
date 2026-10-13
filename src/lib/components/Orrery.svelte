@@ -12,14 +12,17 @@
     resetToNow: number;
     onselect: (id: BodyId) => void;
     ontick: (simMs: number, positions: PositionsAU) => void;
+    /** Playback reached the earliest or latest supported date and stopped. */
+    onlimit: () => void;
   }
 
-  let { selected, playing, daysPerSec, scale, resetToNow, onselect, ontick }: Props = $props();
+  let { selected, playing, daysPerSec, scale, resetToNow, onselect, ontick, onlimit }: Props = $props();
 
   let container: HTMLDivElement;
   const labels: Partial<Record<BodyId, HTMLElement>> = $state({});
   let scene: import('$lib/orrery/scene').OrreryScene | undefined = $state();
   let failed = $state(false);
+  let contextLost = $state(false);
 
   onMount(() => {
     let disposed = false;
@@ -31,7 +34,9 @@
           container,
           labels,
           onSelect: (id) => onselect(id),
-          onTick: (ms, pos) => ontick(ms, pos)
+          onTick: (ms, pos) => ontick(ms, pos),
+          onLimit: () => onlimit(),
+          onContext: (available) => (contextLost = !available)
         });
         scene.playing = playing;
       })
@@ -69,6 +74,13 @@
   role="img"
   aria-label="3D view of the solar system. Drag to rotate, scroll or pinch to zoom."
 ></div>
+
+{#if contextLost && !failed}
+  <div class="fallback" role="status">
+    <p class="eyebrow">3D view paused</p>
+    <p>The browser reset its graphics. The view comes back on its own; the panel and controls still work.</p>
+  </div>
+{/if}
 
 {#if failed}
   <div class="fallback" role="status">
