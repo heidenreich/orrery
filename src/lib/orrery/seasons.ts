@@ -7,7 +7,8 @@
 // so Venus and Uranus, which spin backwards, measure 2.6° and 82.2° from their orbit normals.
 
 import { planetById, type PlanetId } from './bodies';
-import { centuriesSinceJ2000, heliocentric, length, orbitShape, type Vec3 } from './orbits';
+import { planetPosition } from './ephemeris';
+import { centuriesSinceJ2000, length, orbitShape, type Vec3 } from './orbits';
 
 const DEG = Math.PI / 180;
 const DAY_MS = 86_400_000;
@@ -73,7 +74,7 @@ export interface SunGeometry {
 export function sunGeometry(id: PlanetId, ms: number): SunGeometry {
   const n = northPole(id, ms);
   const k = orbitShape(planet(id), ms).normal;
-  const p = heliocentric(planet(id), ms);
+  const p = planetPosition(id, ms);
   const toSun = unit({ x: -p.x, y: -p.y, z: -p.z });
   // At the northern spring equinox the Sun lies along n × k; Ls grows as the planet moves along its orbit.
   const e = unit(cross(n, k));
@@ -93,7 +94,7 @@ export interface Sunlight {
 }
 
 export function sunlight(id: PlanetId, ms: number): Sunlight {
-  const r = length(heliocentric(planet(id), ms));
+  const r = length(planetPosition(id, ms));
   const { a, e } = orbitShape(planet(id), ms);
   const now = SOLAR_CONSTANT / (r * r);
   return {

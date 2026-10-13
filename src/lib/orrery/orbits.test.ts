@@ -1,29 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { planetById } from './bodies';
-import { distance, heliocentric, length, marsSolDate } from './orbits';
+import { marsSolDate } from './orbits';
 
-const earth = planetById('earth');
-const mars = planetById('mars');
 const at = (iso: string) => Date.parse(iso);
-
-describe('heliocentric positions', () => {
-  it('keeps Earth near 1 AU from the Sun', () => {
-    for (const d of ['2000-01-01', '2026-01-03', '2026-07-04']) {
-      expect(length(heliocentric(earth, at(d)))).toBeGreaterThan(0.98);
-      expect(length(heliocentric(earth, at(d)))).toBeLessThan(1.02);
-    }
-  });
-
-  it('puts Earth at perihelion in early January and aphelion in early July', () => {
-    expect(length(heliocentric(earth, at('2026-01-03')))).toBeCloseTo(0.983, 2);
-    expect(length(heliocentric(earth, at('2026-07-06')))).toBeCloseTo(1.017, 2);
-  });
-
-  it('matches the Mars close approach of 12 Jan 2025 (0.642 AU, 96 million km)', () => {
-    const d = distance(heliocentric(earth, at('2025-01-12')), heliocentric(mars, at('2025-01-12')));
-    expect(d).toBeCloseTo(0.642, 2);
-  });
-});
 
 describe('marsSolDate', () => {
   // Curiosity counts sols in Gale Crater's local time (137.4° E), with landing on sol 0 at about

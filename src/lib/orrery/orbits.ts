@@ -1,6 +1,7 @@
-// Planet positions from JPL's "Approximate Positions of the Planets"
-// (E. M. Standish, Table 1, valid 1800–2050 AD):
-// https://ssd.jpl.nasa.gov/planets/approx_pos.html
+// Orbit shapes from JPL's "Approximate Positions of the Planets" (E. M. Standish, Table 1,
+// fitted for 1800–2050 AD): https://ssd.jpl.nasa.gov/planets/approx_pos.html
+// These give each orbit's size, shape and plane, for drawing the ellipses and for seasons. Where
+// the planets actually are comes from ephemeris.ts, which is more accurate and holds far longer.
 
 const DEG = Math.PI / 180;
 const DAY_MS = 86_400_000;
@@ -29,8 +30,6 @@ interface Keplerian {
   varpi: number;
   node: number;
 }
-
-export const VALID_YEARS = { from: 1800, to: 2050 } as const;
 
 export const julianDate = (ms: number) => ms / DAY_MS + 2440587.5;
 
@@ -65,21 +64,6 @@ function fromEccentricAnomaly(k: Keplerian, E: number): Vec3 {
     y: (cw * sO + sw * cO * cI) * xp + (-sw * sO + cw * cO * cI) * yp,
     z: sw * sI * xp + cw * sI * yp
   };
-}
-
-function solveKepler(M: number, e: number): number {
-  let E = M + e * Math.sin(M);
-  for (let i = 0; i < 8; i++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
-  return E;
-}
-
-/** Heliocentric ecliptic position (AU) at a moment in time. */
-export function heliocentric(o: OrbitalElements, ms: number): Vec3 {
-  const k = elementsAt(o, centuriesSinceJ2000(ms));
-  let M = (k.L - k.varpi) % (2 * Math.PI);
-  if (M > Math.PI) M -= 2 * Math.PI;
-  if (M < -Math.PI) M += 2 * Math.PI;
-  return fromEccentricAnomaly(k, solveKepler(M, k.e));
 }
 
 /** Points around the full orbit ellipse (AU), for drawing the orbit path. */

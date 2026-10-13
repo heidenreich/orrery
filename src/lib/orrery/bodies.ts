@@ -1,4 +1,5 @@
-import { heliocentric, type OrbitalElements, type Vec3 } from './orbits';
+import { planetPosition } from './ephemeris';
+import type { OrbitalElements, Vec3 } from './orbits';
 
 export type BodyId =
   | 'sun'
@@ -43,7 +44,8 @@ export const SUN: Body = {
   ]
 };
 
-// Orbital elements: JPL Approximate Positions of the Planets, Table 1 (1800–2050 AD).
+// Orbital elements: JPL Approximate Positions of the Planets, Table 1 (1800–2050 AD), used for
+// orbit shapes and the drawn ellipses. Positions come from ephemeris.ts.
 export const PLANETS: Planet[] = [
   {
     id: 'mercury', name: 'Mercury', kind: 'Terrestrial planet', color: '#a59d94', radiusKm: 2440,
@@ -142,6 +144,6 @@ export type PositionsAU = Record<PlanetId, Vec3>;
 /** Heliocentric ecliptic positions (AU) of every planet at a moment in time. */
 export function planetPositions(ms: number): PositionsAU {
   const out = {} as PositionsAU;
-  for (const p of PLANETS) out[p.id as PlanetId] = heliocentric(p, ms);
+  for (const p of PLANETS) out[p.id as PlanetId] = planetPosition(p.id as PlanetId, ms);
   return out;
 }

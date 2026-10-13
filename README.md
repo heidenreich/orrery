@@ -3,9 +3,11 @@
 An interactive 3D solar system with planet weather, starting with the latest
 report from NASA's Curiosity rover.
 
-Planet positions are computed for any date from JPL's
-[approximate orbital elements](https://ssd.jpl.nasa.gov/planets/approx_pos.html)
-(accurate for 1800–2050). Select a planet to see its distance from Earth, signal
+Planet positions are computed for any date from 1000 to 3000 with
+[Astronomy Engine](https://github.com/cosinekitty/astronomy) (VSOP87, about
+1 arcminute), and orbits are drawn from JPL's
+[approximate orbital elements](https://ssd.jpl.nasa.gov/planets/approx_pos.html).
+Select a planet to see its distance from Earth, signal
 delay, and what its weather is like.
 
 It grew out of [heidenreich/mars](https://github.com/heidenreich/mars), a 2014
@@ -60,6 +62,8 @@ activity; re-enable it from the Actions tab if that happens.
 - [SvelteKit](https://svelte.dev/docs/kit) (Svelte 5) with `adapter-static`: the
   site builds to plain files. CI sets `BASE_PATH` from the Pages configuration.
 - [three.js](https://threejs.org) for the 3D scene, loaded only in the browser.
+- [Astronomy Engine](https://github.com/cosinekitty/astronomy) (MIT) for planet
+  positions.
 - [Vitest](https://vitest.dev) for unit tests, [Playwright](https://playwright.dev)
   for browser smoke tests (`tests/e2e`).
 
@@ -67,7 +71,8 @@ activity; re-enable it from the Actions tab if that happens.
 
 ```
 src/
-  lib/orrery/orbits.ts      Orbital math: positions, orbit paths, Mars Sol Date
+  lib/orrery/ephemeris.ts   Planet positions (Astronomy Engine)
+  lib/orrery/orbits.ts      Orbit shapes and paths (JPL mean elements), Mars Sol Date
   lib/orrery/bodies.ts      Planet data: orbital elements, sizes, weather facts
   lib/orrery/scene.ts       three.js scene, camera and labels (no UI framework code)
   lib/orrery/textures.ts    Drawn planet, ring and glow textures (shown until the images load)
@@ -104,8 +109,14 @@ Accuracy, as checked by the unit tests:
 - Axial tilts within 0.05° of published values.
 - Curiosity's sol numbering exactly, counted in Gale Crater local time.
 
-The orbit model (JPL's approximate elements) is fitted for 1800–2050. The page
-warns outside that range and stops playback at the years 1000 and 3000.
+Positions come from Astronomy Engine (`src/lib/orrery/ephemeris.ts`), whose
+truncated VSOP87 is checked by its author against NOVAS and JPL Horizons to
+about 1 arcminute; VSOP87 holds for thousands of years around 2000. The tests
+check it against Earth's 2026 perihelion and aphelion, the January 2025 Mars
+close approach, and the Mars, Jupiter and Saturn oppositions of 2025–26.
+The orbit lines use JPL's mean elements (fitted for 1800–2050); over the
+page's whole range, 1000 to 3000, the planets stay within 0.03° of their drawn
+orbit plane and 0.6% of its distance range. Playback stops at those years.
 
 ## Data
 
