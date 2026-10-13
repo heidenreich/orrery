@@ -8,6 +8,7 @@
   import type { WeatherData } from '$lib/data/weather-data';
   import { ALL_BODIES, bodyById, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { distance, length, marsSolDate } from '$lib/orrery/orbits';
+  import { FACTS, MOONS_CHECKED, gravityText, massText } from '$lib/orrery/facts';
   import { northSeason } from '$lib/orrery/seasons';
 
   interface Props {
@@ -31,6 +32,7 @@
     `${lo != null ? celsius(lo) : '?'} to ${hi != null ? celsius(hi) : '?'}`;
 
   const body = $derived(selected ? bodyById(selected) : null);
+  const facts = $derived(selected ? FACTS[selected] : null);
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const reportAge = $derived(ago(`${report.earthDate}T12:00:00Z`, now));
 
@@ -232,7 +234,15 @@
       {#if body.pressure}<dt>Surface pressure</dt><dd>{body.pressure}</dd>{/if}
       <dt>Radius</dt>
       <dd>{body.radiusKm.toLocaleString('en-US')} km</dd>
+      {#if facts}
+        <dt>Mass</dt><dd>{massText(facts.massEarths)}</dd>
+        <dt>Gravity</dt><dd>{gravityText(facts.gravity)}</dd>
+        <dt>Escape velocity</dt><dd>{facts.escapeKms} km/s</dd>
+        <dt>Density</dt><dd>{facts.density} g/cm³{body.id === 'saturn' ? ', less than water' : ''}</dd>
+        {#if facts.moons}<dt>Moons</dt><dd>{facts.moons.count === '0' ? 'None' : facts.moons.count}</dd>{/if}
+      {/if}
     </dl>
+
 
     <div class="weather">
       <p class="eyebrow section">Weather</p>
@@ -240,6 +250,37 @@
         {#each body.weather as w (w)}<li>{w}</li>{/each}
       </ul>
     </div>
+
+    {#if facts}
+      <div class="about" data-testid="facts">
+        <section>
+          <p class="eyebrow section">{body.id === 'sun' ? 'Made of' : 'Atmosphere'}</p>
+          <p>{facts.atmosphere}</p>
+        </section>
+        {#if facts.moons?.notable}
+          <section>
+            <p class="eyebrow section">Moons</p>
+            <p>
+              {facts.moons.count === '1' ? 'One moon' : `${facts.moons.count} known moons`}{facts.moons.count.endsWith('+')
+                ? ` as of ${MOONS_CHECKED}, and new small ones keep turning up`
+                : ''}. {facts.moons.notable}.
+            </p>
+          </section>
+        {/if}
+        {#if facts.rings}
+          <section>
+            <p class="eyebrow section">Rings</p>
+            <p>{facts.rings}.</p>
+          </section>
+        {/if}
+        {#if facts.visited}
+          <section>
+            <p class="eyebrow section">Visited by</p>
+            <p>{facts.visited}.</p>
+          </section>
+        {/if}
+      </div>
+    {/if}
   {/if}
   <div class="more" class:show={more} aria-hidden="true">More below ↓</div>
 </aside>
@@ -372,6 +413,20 @@
 
   .credit a:hover {
     color: var(--ink);
+  }
+
+  .about {
+    display: grid;
+    gap: 12px;
+  }
+
+  .about p {
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .about .eyebrow {
+    margin-bottom: 4px;
   }
 
   .actions {

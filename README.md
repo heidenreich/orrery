@@ -71,6 +71,7 @@ src/
   lib/orrery/ephemeris.ts   Planet positions (Astronomy Engine)
   lib/orrery/orbits.ts      Orbit shapes and paths (JPL mean elements), Mars Sol Date
   lib/orrery/bodies.ts      Planet data: orbital elements, sizes, weather facts
+  lib/orrery/facts.ts       Mass, gravity, density, atmosphere, moons, rings, missions
   lib/orrery/scene.ts       three.js scene, camera and labels (no UI framework code)
   lib/orrery/textures.ts    Drawn planet, ring and glow textures (shown until the images load)
   lib/orrery/seasons.ts     Sunlight and seasons from each planet's orbit and pole

@@ -401,3 +401,24 @@ test('on wider screens the panel never folds', async ({ page }) => {
   await expect(page.getByTestId('worlds')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Show worlds' })).toBeHidden();
 });
+
+test('planet panels show physical facts, moons, rings and missions', async ({ page }) => {
+  await page.goto('/');
+  await select(page, 'Saturn');
+  const p = panel(page);
+  await expect(p).toContainText(/Moons\s*290\+/);
+  await expect(p).toContainText(/Gravity\s*9\.0 m\/s² · 0\.92× Earth’s/);
+  await expect(p).toContainText(/Density\s*0\.69 g\/cm³, less than water/);
+  const facts = page.getByTestId('facts');
+  await expect(facts).toContainText('Titan');
+  await expect(facts).toContainText(/as of mid-2026/);
+  await expect(facts).toContainText('Cassini');
+
+  await select(page, 'Venus');
+  await expect(p).toContainText(/Moons\s*None/);
+  await expect(page.getByTestId('facts')).toContainText('Carbon dioxide 96.5%');
+
+  await select(page, 'Sun');
+  await expect(page.getByTestId('facts')).toContainText('Made of');
+  await expect(p).toContainText(/Mass\s*333,000 × Earth/);
+});
