@@ -79,7 +79,7 @@ describe('summarizeSolarWind', () => {
     const log = recorder();
     const r = summarizeSolarWind(windSample.records, log);
     expect(r.ok && r.summary.latest).toEqual({
-      time: '2026-10-13T12:55:00.000Z', speed: 538.2, density: 5.1, temperature: 201000, source: 'DSCOVR'
+      time: '2026-10-13T12:55:00.000Z', speed: 538.2, density: 5.1, temperature: 201000, source: 'SOLAR1'
     });
     expect(log.lines[0]).toContain('"IMAP":{"active":0,"inactive":2}');
   });

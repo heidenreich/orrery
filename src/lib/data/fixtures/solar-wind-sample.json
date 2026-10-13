@@ -1,5 +1,5 @@
 {
-  "_note": "The two IMAP records (active: false) are copied from the live feed on 2026-10-13. The DSCOVR records are constructed to test active-source selection, the 24-hour window and missing values.",
+  "_note": "The two IMAP records (active: false) are copied from the live feed on 2026-10-13. The SOLAR1 records (the active source in the live feed) are constructed to test active-source selection, the 24-hour window and missing values.",
   "records": [
     {
       "time_tag": "2026-10-13T12:55:03",
@@ -42,7 +42,7 @@
     {
       "time_tag": "2026-10-13T12:55:00",
       "active": true,
-      "source": "DSCOVR",
+      "source": "SOLAR1",
       "proton_speed": 538.2,
       "proton_temperature": 201000,
       "proton_density": 5.1,
@@ -61,7 +61,7 @@
     {
       "time_tag": "2026-10-13T12:54:00",
       "active": true,
-      "source": "DSCOVR",
+      "source": "SOLAR1",
       "proton_speed": 536.9,
       "proton_temperature": 199500,
       "proton_density": 5.0,
@@ -80,7 +80,7 @@
     {
       "time_tag": "2026-10-13T11:30:00",
       "active": true,
-      "source": "DSCOVR",
+      "source": "SOLAR1",
       "proton_speed": 512.4,
       "proton_temperature": 180200,
       "proton_density": null,
@@ -99,7 +99,7 @@
     {
       "time_tag": "2026-10-12T10:00:00",
       "active": true,
-      "source": "DSCOVR",
+      "source": "SOLAR1",
       "proton_speed": 450.0,
       "proton_temperature": 150000,
       "proton_density": 6.2,
@@ -118,7 +118,7 @@
     {
       "time_tag": "2026-10-13T11:00:00",
       "active": true,
-      "source": "DSCOVR",
+      "source": "SOLAR1",
       "proton_speed": null,
       "proton_temperature": 150000,
       "proton_density": 6.2,

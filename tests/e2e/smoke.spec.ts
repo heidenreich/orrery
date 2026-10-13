@@ -69,7 +69,7 @@ test('shows live solar wind on the Sun panel', async ({ page }) => {
   await expect(card).toContainText('538 km/s');
   await expect(card).toContainText('Last 24 h: 512–538 km/s');
   await expect(card).toContainText('5.1 protons/cm³');
-  await expect(card).toContainText('by DSCOVR');
+  await expect(card).toContainText('by SOLAR1');
   await expect(card.getByRole('img')).toBeVisible();
 });
 

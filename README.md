@@ -99,8 +99,9 @@ Notes on the feeds (checked 2026-10-13):
 - REMS values are strings, `"--"` when a reading is missing, and the newest sol
   lags a few weeks behind. Field names match the parser.
 - The solar wind feed interleaves records from several spacecraft, each with
-  `source` and `active`. The parser assumes `active: true` marks NOAA's primary
-  spacecraft and uses only those, or every source if none is active; it logs
-  counts per source so the CI log can confirm this.
+  `source` and `active`. On 2026-10-13 it held SOLAR1 (1165 records, all
+  active), ACE (1217) and IMAP (1209, both inactive), so the parser uses only
+  active records, or every source if none is active. It logs counts per source
+  on each build in case NOAA changes this.
 - `src/lib/data/fixtures/` holds the real newest REMS entry and two real solar
   wind records; the rest of each sample is constructed for tests.

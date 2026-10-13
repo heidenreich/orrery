@@ -1,9 +1,9 @@
 // Parser for NOAA SWPC's real-time solar wind feed:
 // https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json
-// An array of 1-minute plasma records, newest first, about 2.6 MB. Records from several
-// spacecraft are interleaved; each has "source" (e.g. "IMAP") and "active".
-// Assumption, not yet confirmed against a full download: "active": true marks the spacecraft
-// NOAA currently treats as primary. The parser logs counts per source so CI logs can confirm it.
+// An array of 1-minute plasma records, about 2.6 MB. Records from several spacecraft are
+// interleaved; each has "source" and "active". On 2026-10-13 the feed held 3591 records:
+// SOLAR1 1165 (all active), ACE 1217 and IMAP 1209 (all inactive). So "active": true marks the
+// spacecraft NOAA currently uses; the parser logs counts per source in case that changes.
 
 import type { Logger } from './fetch-json';
 
