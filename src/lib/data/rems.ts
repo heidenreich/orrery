@@ -26,6 +26,13 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** True for a real calendar date in YYYY-MM-DD form (rejects 2026-13-45 and 2026-02-30). */
+export function isIsoDate(s: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const ms = Date.parse(`${s}T00:00:00Z`);
+  return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === s;
+}
+
 /** "Month 12" → 12 */
 function month(v: unknown): number | null {
   const m = text(v)?.match(/(\d{1,2})/);
@@ -52,7 +59,7 @@ export function parseSol(raw: RemsSol): ParseResult {
   const sol = num(raw.sol);
   if (sol === null || sol < 0 || !Number.isInteger(sol)) return { ok: false, reason: `invalid sol ${JSON.stringify(raw.sol)}` };
   const earthDate = text(raw.terrestrial_date);
-  if (!earthDate || !/^\d{4}-\d{2}-\d{2}$/.test(earthDate)) {
+  if (!earthDate || !isIsoDate(earthDate)) {
     return { ok: false, reason: `invalid terrestrial_date ${JSON.stringify(raw.terrestrial_date)}` };
   }
 
@@ -104,22 +111,21 @@ export function summarizeRems(body: unknown, log: Logger, historySols = 60): Mar
   if (!list.ok) return list;
   log.info('[rems]', `${list.soles.length} sols in feed; newest raw entry:`, JSON.stringify(list.soles[0] ?? null));
 
-  const sorted = [...list.soles].sort((a, b) => Number(b.sol) - Number(a.sol));
-  const valid: MarsReport[] = [];
+  // Parse every entry before sorting: an unparseable sol would make the comparator inconsistent
+  // and could put an older sol first.
+  const parsed: { report: MarsReport; missing: string[] }[] = [];
   let skipped = 0;
-  for (const raw of sorted) {
-    if (valid.length >= historySols) break;
-    const parsed = parseSol(raw);
-    if (!parsed.ok) {
-      if (skipped++ < 5) log.warn('[rems]', `skipping entry: ${parsed.reason}`);
-      continue;
-    }
-    if (valid.length === 0 && parsed.missing.length) {
-      log.info('[rems]', `sol ${parsed.report.sol} has no reading for: ${parsed.missing.join(', ')}`);
-    }
-    valid.push(parsed.report);
+  for (const raw of list.soles) {
+    const p = parseSol(raw);
+    if (p.ok) parsed.push(p);
+    else if (skipped++ < 5) log.warn('[rems]', `skipping entry: ${p.reason}`);
   }
-  if (!valid.length) return { ok: false, reason: `none of the ${list.soles.length} entries had a valid sol and date` };
+  if (skipped > 5) log.warn('[rems]', `skipped ${skipped} invalid entries in total`);
+  if (!parsed.length) return { ok: false, reason: `none of the ${list.soles.length} entries had a valid sol and date` };
+
+  parsed.sort((a, b) => b.report.sol - a.report.sol);
+  const valid = parsed.slice(0, historySols).map((p) => p.report);
+  if (parsed[0].missing.length) log.info('[rems]', `sol ${valid[0].sol} has no reading for: ${parsed[0].missing.join(', ')}`);
 
   const history = valid
     .map(({ sol, earthDate, minTemp, maxTemp, pressure }) => ({ sol, earthDate, minTemp, maxTemp, pressure }))

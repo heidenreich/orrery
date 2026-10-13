@@ -3,10 +3,10 @@ import remsSample from './fixtures/rems-sample.json';
 import windSample from './fixtures/solar-wind-sample.json';
 import type { Logger } from './fetch-json';
 import { STORED_MARS_REPORT } from './mars-report';
-import { parseSol, REMS_FEED_URL, summarizeRems } from './rems';
+import { isIsoDate, parseSol, REMS_FEED_URL, summarizeRems } from './rems';
 import { SOLAR_WIND_URL, summarizeSolarWind } from './solar-wind';
 import { loadWeather } from './weather';
-import { collectWeather, isWeatherData, type WeatherData } from './weather-data';
+import { collectWeather, parseWeatherData, type WeatherData } from './weather-data';
 
 const json = (body: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' }, ...init });
@@ -28,6 +28,7 @@ function routes(map: Record<string, () => Response | Promise<Response>>): typeof
 
 const NOW = () => new Date('2026-10-13T13:00:00Z');
 const PREVIOUS = 'https://example.test/orrery/data/weather.json';
+const WIND_NOW = Date.parse('2026-10-13T13:00:00Z');
 
 describe('parseSol', () => {
   it('converts the feed strings to numbers and keeps text fields', () => {
@@ -48,6 +49,13 @@ describe('parseSol', () => {
     expect(r.ok && r.missing).toEqual([
       'min_temp', 'max_temp', 'pressure', 'atmo_opacity', 'min_gts_temp', 'max_gts_temp', 'local_uv_irradiance_index'
     ]);
+  });
+
+  it('rejects dates that are not real calendar dates', () => {
+    expect(isIsoDate('2026-08-25')).toBe(true);
+    expect(isIsoDate('2028-02-29')).toBe(true);
+    for (const d of ['2026-13-45', '2026-02-30', '2027-02-29', '2026-8-25', '']) expect(isIsoDate(d)).toBe(false);
+    expect(parseSol({ sol: '1', terrestrial_date: '2026-13-45' })).toMatchObject({ ok: false });
   });
 
   it('rejects entries without a usable sol or date', () => {
@@ -72,6 +80,13 @@ describe('summarizeRems', () => {
     expect(r.ok && r.history.at(-1)?.sol).toBe(4099);
   });
 
+  it('picks the newest sol even when an unparseable sol sits between valid ones', () => {
+    const soles = ['4990', '--', '4995', '4993'].map((sol, i) => ({ sol, terrestrial_date: `2026-08-2${i}` }));
+    const r = summarizeRems({ soles }, recorder());
+    expect(r.ok && r.report.sol).toBe(4995);
+    expect(r.ok && r.history.map((h) => h.sol)).toEqual([4990, 4993, 4995]);
+  });
+
   it('explains an unexpected shape', () => {
     expect(summarizeRems({ data: [] }, recorder())).toEqual({ ok: false, reason: 'no "soles" array (keys: data)' });
   });
@@ -80,7 +95,7 @@ describe('summarizeRems', () => {
 describe('summarizeSolarWind', () => {
   it('uses only the active spacecraft and reports per-source counts', () => {
     const log = recorder();
-    const r = summarizeSolarWind(windSample.records, log);
+    const r = summarizeSolarWind(windSample.records, log, { now: WIND_NOW });
     expect(r.ok && r.summary.latest).toEqual({
       time: '2026-10-13T12:55:00.000Z', speed: 538.2, density: 5.1, temperature: 201000, source: 'SOLAR1'
     });
@@ -88,7 +103,7 @@ describe('summarizeSolarWind', () => {
   });
 
   it('keeps the last 24 hours, oldest first, and skips records without a speed', () => {
-    const r = summarizeSolarWind(windSample.records, recorder());
+    const r = summarizeSolarWind(windSample.records, recorder(), { now: WIND_NOW });
     expect(r.ok && r.summary.series.map((p) => p.time)).toEqual([
       '2026-10-13T11:30:00.000Z',
       '2026-10-13T12:55:00.000Z'
@@ -97,9 +112,20 @@ describe('summarizeSolarWind', () => {
 
   it('falls back to every source when none is flagged active', () => {
     const inactive = windSample.records.filter((r) => !r.active);
-    const r = summarizeSolarWind(inactive, recorder());
+    const r = summarizeSolarWind(inactive, recorder(), { now: WIND_NOW });
     expect(r.ok && r.summary.latest.source).toBe('IMAP');
     expect(r.ok && r.summary.latest.speed).toBe(541.91);
+  });
+
+  it('rejects a feed whose newest reading is more than 3 hours old', () => {
+    const r = summarizeSolarWind(windSample.records, recorder(), { now: Date.parse('2026-10-13T16:30:00Z') });
+    expect(r).toEqual({ ok: false, reason: 'newest reading is 3.6 h old (2026-10-13T12:55:00.000Z); limit is 3 h' });
+  });
+
+  it('ignores readings stamped in the future', () => {
+    const future = { ...windSample.records[2], time_tag: '2026-10-13T18:00:00', proton_speed: 999 };
+    const r = summarizeSolarWind([future, ...windSample.records], recorder(), { now: WIND_NOW });
+    expect(r.ok && r.summary.latest.speed).toBe(538.2);
   });
 
   it('rejects data that is not a record list', () => {
@@ -112,7 +138,7 @@ describe('collectWeather', () => {
   it('builds a live data file from both feeds', async () => {
     const fetch = routes({ [REMS_FEED_URL]: () => json(remsSample), [SOLAR_WIND_URL]: () => json(windSample.records) });
     const d = await collectWeather({ fetch, log: recorder(), now: NOW });
-    expect(isWeatherData(d)).toBe(true);
+    expect(parseWeatherData(d)).toEqual({ ok: true, data: d });
     expect(d.mars).toMatchObject({ source: 'live', fetchedAt: '2026-10-13T13:00:00.000Z', report: { sol: 4995 } });
     expect(d.solarWind).toMatchObject({ source: 'live', summary: { latest: { speed: 538.2 } } });
     // Small enough for every visitor: the feeds are megabytes, the file should be a few KB.
@@ -134,6 +160,32 @@ describe('collectWeather', () => {
     expect(log.lines.some((l) => l.includes('NASA feed failed (HTTP 503); Mars data is previous'))).toBe(true);
   });
 
+  it('does not carry forward a previous solar wind reading older than a day', async () => {
+    const previous = await collectWeather({
+      fetch: routes({ [REMS_FEED_URL]: () => json(remsSample), [SOLAR_WIND_URL]: () => json(windSample.records) }),
+      log: recorder(),
+      now: NOW
+    });
+    const log = recorder();
+    const d = await collectWeather({
+      fetch: routes({ [REMS_FEED_URL]: () => json(remsSample), [PREVIOUS]: () => json(previous) }),
+      log,
+      previousUrl: PREVIOUS,
+      now: () => new Date('2026-10-15T13:00:00Z')
+    });
+    expect(d.solarWind).toMatchObject({ source: 'none', summary: null });
+    expect(log.lines.some((l) => l.includes('previous reading is 48 h old; not reusing it'))).toBe(true);
+  });
+
+  it('ignores a malformed previous file instead of copying it forward', async () => {
+    const broken = { version: 1, generatedAt: '2026-10-13T12:00:00Z', mars: { source: 'live', fetchedAt: null, report: { sol: 1, earthDate: '2026-08-25' }, history: [] }, solarWind: { source: 'live', fetchedAt: null, summary: 'oops' } };
+    const log = recorder();
+    const d = await collectWeather({ fetch: routes({ [PREVIOUS]: () => json(broken) }), log, previousUrl: PREVIOUS, now: NOW });
+    expect(d.mars.source).toBe('stored');
+    expect(d.solarWind.source).toBe('none');
+    expect(log.lines.some((l) => l.includes('previous data unavailable: solarWind.summary is not an object'))).toBe(true);
+  });
+
   it('falls back to the stored report when nothing can be fetched', async () => {
     const d = await collectWeather({ fetch: routes({}), log: recorder(), previousUrl: PREVIOUS, now: NOW });
     expect(d.mars).toMatchObject({ source: 'stored', report: STORED_MARS_REPORT });
@@ -144,6 +196,45 @@ describe('collectWeather', () => {
     const fetch = routes({});
     await collectWeather({ fetch, log: recorder(), offline: true, now: NOW });
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('parseWeatherData', () => {
+  const good = () => JSON.parse(JSON.stringify(sample())) as Record<string, any>;
+  const sample = () => ({
+    version: 1,
+    generatedAt: '2026-10-13T13:00:00.000Z',
+    mars: { source: 'live', fetchedAt: '2026-10-13T13:00:00.000Z', report: { ...STORED_MARS_REPORT }, history: [] },
+    solarWind: { source: 'live', fetchedAt: '2026-10-13T13:00:00.000Z', summary: { latest: { time: '2026-10-13T12:55:00.000Z', speed: 538.2, density: 5.1, temperature: 201000, source: 'SOLAR1' }, series: [] } }
+  });
+
+  it('accepts a good file and drops fields it does not know', () => {
+    const f = good();
+    f.extra = 'x';
+    f.mars.report.injected = '<script>';
+    const r = parseWeatherData(f);
+    expect(r.ok && r.data).toEqual(sample());
+  });
+
+  it('loads a file written before ground temperature and UV existed', () => {
+    const f = good();
+    delete f.mars.report.minGroundTemp;
+    delete f.mars.report.uvIndex;
+    const r = parseWeatherData(f);
+    expect(r.ok && [r.data.mars.report.minGroundTemp, r.data.mars.report.uvIndex]).toEqual([null, null]);
+  });
+
+  it.each<[string, (f: Record<string, any>) => void, string]>([
+    ['a number where text belongs', (f) => (f.mars.report.uvIndex = 5), 'mars.report.uvIndex is not a short string'],
+    ['an impossible date', (f) => (f.mars.report.earthDate = '2026-13-45'), 'mars.report.earthDate is not a YYYY-MM-DD date'],
+    ['a summary without a reading', (f) => (f.solarWind.summary = { series: [] }), 'solarWind.summary.latest is not an object'],
+    ['a speed that is not a number', (f) => (f.solarWind.summary.latest.speed = 'fast'), 'solarWind.summary.latest.speed is not a number'],
+    ['an unknown source', (f) => (f.mars.source = 'guess'), 'mars.source is not one of live, previous, stored'],
+    ['a newer version', (f) => (f.version = 2), 'unsupported version 2']
+  ])('rejects %s', (_, mutate, reason) => {
+    const f = good();
+    mutate(f);
+    expect(parseWeatherData(f)).toEqual({ ok: false, reason });
   });
 });
 

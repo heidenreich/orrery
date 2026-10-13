@@ -1,9 +1,15 @@
 <script lang="ts">
+  import { SOLAR_WIND_MAX_AGE_HOURS } from '$lib/data/solar-wind';
   import type { SolarWindData } from '$lib/data/weather-data';
+  import { ago } from '$lib/format';
 
-  let { data }: { data: SolarWindData } = $props();
+  let { data, now }: { data: SolarWindData; now: number } = $props();
 
-  const fmtTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' });
+  const fmtWhen = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short'
+  });
+  const ageHours = $derived(data.summary ? (now - Date.parse(data.summary.latest.time)) / 3_600_000 : 0);
+  const stale = $derived(ageHours > SOLAR_WIND_MAX_AGE_HOURS);
   const W = 220, H = 44;
 
   const chart = $derived.by(() => {
@@ -37,12 +43,15 @@
       {#if s.density !== null}<dt>Density</dt><dd>{s.density.toFixed(1)} protons/cm³</dd>{/if}
       {#if s.temperature !== null}<dt>Temperature</dt><dd>{Math.round(s.temperature).toLocaleString('en-US')} K</dd>{/if}
       <dt>Measured</dt>
-      <dd>{fmtTime.format(new Date(s.time))} by {s.source}</dd>
+      <dd>{fmtWhen.format(new Date(s.time))} ({ago(s.time, now)}) by {s.source}</dd>
     </dl>
     <p class="note">
       NOAA real-time solar wind, measured upstream of Earth.
       {#if data.source === 'previous'}NOAA was unreachable at the last update, so this is the previous reading.{/if}
     </p>
+    {#if stale}
+      <p class="stale" role="status">This reading is {Math.round(ageHours)} hours old, so it may not reflect conditions now.</p>
+    {/if}
   </div>
 {/if}
 
@@ -79,6 +88,13 @@
 
   circle {
     fill: var(--sun);
+  }
+
+  .stale {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--warn);
   }
 
   .range,

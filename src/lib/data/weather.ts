@@ -2,17 +2,17 @@
 // Falls back to the report bundled with the site if the file is missing or unreadable.
 
 import { fetchJson, type Logger } from './fetch-json';
-import { isWeatherData, STORED_WEATHER, type WeatherData } from './weather-data';
+import { parseWeatherData, STORED_WEATHER, type WeatherData } from './weather-data';
 
 export async function loadWeather(url: string, opts: { fetch?: typeof fetch; log?: Logger } = {}): Promise<WeatherData> {
   const { fetch: doFetch = fetch, log = console } = opts;
   const res = await fetchJson(url, { fetch: doFetch, log, tag: '[weather]', timeoutMs: 8000 });
-  if (!res.ok || !isWeatherData(res.body)) {
-    const reason = res.ok ? 'unrecognised data file' : res.reason;
-    log.warn('[weather]', `using stored report: ${reason}`);
+  const parsed = res.ok ? parseWeatherData(res.body) : res;
+  if (!parsed.ok) {
+    log.warn('[weather]', `using stored report: ${parsed.reason}`);
     return STORED_WEATHER(new Date().toISOString());
   }
-  const d = res.body;
+  const d = parsed.data;
   log.info('[weather]', `data built ${d.generatedAt}`, {
     mars: `${d.mars.source}, sol ${d.mars.report.sol} (${d.mars.report.earthDate})${d.mars.error ? `, last error: ${d.mars.error}` : ''}`,
     solarWind: d.solarWind.summary

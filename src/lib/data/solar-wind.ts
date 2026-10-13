@@ -37,12 +37,17 @@ function toIso(tag: unknown): string | null {
 
 type Row = SolarWindPoint & { source: string; active: boolean };
 
+/** Readings older than this are treated as a failed fetch rather than shown as current. */
+export const SOLAR_WIND_MAX_AGE_HOURS = 3;
+/** Allowance for clock differences between NOAA and the build machine. */
+const FUTURE_TOLERANCE_MS = 10 * 60_000;
+
 export function summarizeSolarWind(
   body: unknown,
   log: Logger,
-  opts: { windowHours?: number; stepMinutes?: number } = {}
+  opts: { windowHours?: number; stepMinutes?: number; now?: number; maxAgeHours?: number } = {}
 ): { ok: true; summary: SolarWindSummary } | { ok: false; reason: string } {
-  const { windowHours = 24, stepMinutes = 10 } = opts;
+  const { windowHours = 24, stepMinutes = 10, now = Date.now(), maxAgeHours = SOLAR_WIND_MAX_AGE_HOURS } = opts;
   if (!Array.isArray(body)) return { ok: false, reason: 'response is not a JSON array' };
 
   const rows: Row[] = [];
@@ -55,7 +60,7 @@ export function summarizeSolarWind(
     c[active ? 'active' : 'inactive']++;
     const time = toIso(r.time_tag);
     const speed = finite(r.proton_speed);
-    if (!time || speed === null) continue;
+    if (!time || speed === null || Date.parse(time) > now + FUTURE_TOLERANCE_MS) continue;
     rows.push({ time, speed, density: finite(r.proton_density), temperature: finite(r.proton_temperature), source, active });
   }
   log.info('[solar-wind]', `${body.length} records; by source:`, JSON.stringify(counts));
@@ -71,6 +76,10 @@ export function summarizeSolarWind(
   }
   const ordered = [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time));
   const newest = ordered[ordered.length - 1];
+  const ageHours = (now - Date.parse(newest.time)) / 3_600_000;
+  if (ageHours > maxAgeHours) {
+    return { ok: false, reason: `newest reading is ${ageHours.toFixed(1)} h old (${newest.time}); limit is ${maxAgeHours} h` };
+  }
 
   // Downsample to one point per step: the last reading in each bucket.
   const since = Date.parse(newest.time) - windowHours * 3_600_000;

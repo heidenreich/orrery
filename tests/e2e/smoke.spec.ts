@@ -2,7 +2,21 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
 const DATA = '**/data/weather.json';
-const sample = readFileSync(new URL('./weather-sample.json', import.meta.url), 'utf8');
+const sampleFile = readFileSync(new URL('./weather-sample.json', import.meta.url), 'utf8');
+
+/** The sample data with its timestamps shifted so the newest solar wind reading is `ageMinutes` old. */
+function sampleAged(ageMinutes = 5): string {
+  const d = JSON.parse(sampleFile);
+  const shift = Date.now() - ageMinutes * 60_000 - Date.parse(d.solarWind.summary.latest.time);
+  const move = (iso: string) => new Date(Date.parse(iso) + shift).toISOString();
+  d.generatedAt = move(d.generatedAt);
+  d.mars.fetchedAt = move(d.mars.fetchedAt);
+  d.solarWind.fetchedAt = move(d.solarWind.fetchedAt);
+  d.solarWind.summary.latest.time = move(d.solarWind.summary.latest.time);
+  for (const p of d.solarWind.summary.series) p.time = move(p.time);
+  return JSON.stringify(d);
+}
+const sample = sampleAged();
 
 // Serve a known data file (the test build skips the network), and record any request to the
 // upstream feeds: the browser should never call NASA or NOAA itself.
@@ -53,14 +67,14 @@ test('shows Mars weather from the data file and logs it', async ({ page }) => {
   await page.goto('/');
   await select(page, 'Mars');
 
-  await expect(page.getByTestId('weather-source')).toHaveText(/^From NASA's REMS feed, checked .+ ago\.$/);
+  await expect(page.getByTestId('weather-source')).toHaveText("From NASA's REMS feed, checked just now.");
   await expect(panel(page)).toContainText('-71 °C to -5 °C');
   await expect(panel(page)).toContainText('777 Pa');
   await expect(panel(page)).toContainText('06:46–18:51');
   await expect(panel(page)).toContainText(/Ground temperature\s*-84 °C to 4 °C/);
   await expect(panel(page)).toContainText(/UV level\s*Moderate/);
   expect(logs[0]).toMatch(/^\[weather\] GET .*\/data\/weather\.json$/);
-  await expect.poll(() => logs.join('\n')).toMatch(/\[weather\] data built 2026-10-13T13:00:00.000Z/);
+  await expect.poll(() => logs.join('\n')).toMatch(/\[weather\] data built \d{4}-\d{2}-\d{2}T[\d:.]+Z/);
   expect(upstream).toEqual([]);
 });
 
@@ -89,6 +103,19 @@ test('shows live solar wind on the Sun panel', async ({ page }) => {
   await expect(card).toContainText('5.1 protons/cm³');
   await expect(card).toContainText('by SOLAR1');
   await expect(card.getByRole('img')).toBeVisible();
+  await expect(card).toContainText(/Measured\s*\d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2} UTC \(5 min ago\) by SOLAR1/);
+  await expect(card.getByRole('status')).toHaveCount(0);
+});
+
+test('warns when the solar wind reading is old', async ({ page }) => {
+  await page.unroute(DATA);
+  await page.route(DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: sampleAged(5 * 60) }));
+  await page.goto('/');
+  await select(page, 'Sun');
+
+  const card = page.getByTestId('solar-wind');
+  await expect(card).toContainText('(5 h ago)');
+  await expect(card.getByRole('status')).toHaveText('This reading is 5 hours old, so it may not reflect conditions now.');
 });
 
 test('shows computed sunlight and seasons for each planet', async ({ page }) => {

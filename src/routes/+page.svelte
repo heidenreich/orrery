@@ -113,7 +113,7 @@
   {/if}
 </div>
 
-<InfoPanel {selected} {simMs} {positions} {weather} onclose={() => (selected = null)} />
+<InfoPanel {selected} {simMs} {positions} {weather} {now} onclose={() => (selected = null)} />
 
 <div class="controls surface" role="toolbar" aria-label="Time and view controls">
   <button class="ctl" aria-pressed={playing} onclick={() => (playing = !playing)}>
