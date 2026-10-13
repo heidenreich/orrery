@@ -66,10 +66,12 @@
   const announcement = $derived(selected ? `${bodyById(selected).name} selected` : 'Overview');
 
   let picker: HTMLSelectElement;
-  async function closePanel() {
+  // Keyboard users get focus back on the World menu. Not after a tap or click: focusing a
+  // <select> from script makes iOS Safari pop its picker open.
+  async function closePanel(fromKeyboard: boolean) {
     selected = null;
     await tick();
-    picker?.focus();
+    if (fromKeyboard) picker?.focus();
   }
 
   onMount(() => {
@@ -89,7 +91,7 @@
   });
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && selected) closePanel();
+    if (e.key === 'Escape' && selected) closePanel(true);
     if (e.key === ' ' && e.target === document.body) {
       e.preventDefault();
       playing = !playing;

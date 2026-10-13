@@ -19,7 +19,8 @@
     weather: WeatherData | null;
     /** The actual current time (ms), refreshed by the page, for "N min ago" text. */
     now: number;
-    onclose: () => void;
+    /** `fromKeyboard`: closed with Enter or Space rather than a click or tap. */
+    onclose: (fromKeyboard: boolean) => void;
     onselect: (id: BodyId) => void;
   }
 
@@ -163,7 +164,7 @@
       </div>
       <div class="actions">
         {@render fold('details')}
-        <button class="close" aria-label="Close {body.name} and return to the overview" onclick={onclose}>×</button>
+        <button class="close" aria-label="Close {body.name} and return to the overview" onclick={(e) => onclose(e.detail === 0)}>×</button>
       </div>
     </header>
 

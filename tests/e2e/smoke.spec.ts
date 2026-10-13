@@ -275,10 +275,27 @@ test('a new selection starts at the top of the panel with focus on its heading',
   await expect(aside.getByRole('heading', { name: 'Sun' })).toBeFocused();
   expect(await aside.evaluate((el) => el.scrollTop)).toBe(0);
 
-  // Closing returns focus to the World menu rather than dropping it on the page.
-  await aside.getByRole('button', { name: /^Close Sun/ }).click();
+  // Closing from the keyboard returns focus to the World menu rather than dropping it on the page.
+  await aside.getByRole('button', { name: /^Close Sun/ }).focus();
+  await page.keyboard.press('Enter');
   await expect(world).toBeFocused();
   await expect(world).toHaveValue('');
+
+  // Escape does the same.
+  await world.selectOption({ label: 'Mars' });
+  await page.keyboard.press('Escape');
+  await expect(world).toBeFocused();
+});
+
+// Focusing a <select> from script makes iOS Safari open its picker, so a tap must not do it.
+test('closing a panel with a tap leaves the World menu alone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const world = page.getByRole('combobox', { name: 'World' });
+  await world.selectOption({ label: 'Mars' });
+  await panel(page).getByRole('button', { name: /^Close Mars/ }).click();
+  await expect(world).toHaveValue('');
+  await expect(world).not.toBeFocused();
 });
 
 test('play and pause is a plain button, and picking a speed resumes playback', async ({ page }) => {
