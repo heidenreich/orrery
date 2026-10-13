@@ -1,4 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+
+const FEED = 'https://mars.nasa.gov/rss/api/**';
+const sample = readFileSync(new URL('../../src/lib/data/fixtures/rems-sample.json', import.meta.url), 'utf8');
+
+// Never depend on NASA being reachable: serve the sample feed unless a test overrides it.
+test.beforeEach(async ({ page }) => {
+  await page.route(FEED, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: sample })
+  );
+});
 
 // Fail the test on any console error or uncaught exception.
 function trackErrors(page: Page) {
@@ -29,6 +40,34 @@ test('renders the solar system and opens the Mars panel', async ({ page }) => {
   await expect(panel(page).getByRole('heading', { name: 'Pick a world' })).toBeVisible();
 
   expect(errors).toEqual([]);
+});
+
+test('shows live REMS weather and logs the fetch', async ({ page }) => {
+  const logs: string[] = [];
+  page.on('console', (m) => m.text().startsWith('[weather]') && logs.push(m.text()));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Mars', exact: true }).evaluate((el: HTMLElement) => el.click());
+
+  await expect(page.getByTestId('weather-source')).toHaveText("Fetched just now from NASA's REMS feed.");
+  await expect(panel(page)).toContainText('-78 °C to -4 °C');
+  await expect(panel(page)).toContainText('862 Pa');
+  await expect(panel(page)).toContainText('05:35–17:41');
+  expect(logs[0]).toMatch(/^\[weather\] GET https:\/\/mars\.nasa\.gov/);
+  expect(logs.some((l) => l.includes('HTTP 200'))).toBe(true);
+  expect(logs.some((l) => l.includes('live report: sol 4995'))).toBe(true);
+});
+
+test('falls back to the stored report when NASA is unreachable', async ({ page }) => {
+  await page.unroute(FEED);
+  await page.route(FEED, (route) => route.abort('connectionfailed'));
+  const warnings: string[] = [];
+  page.on('console', (m) => m.type() === 'warning' && warnings.push(m.text()));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Mars', exact: true }).evaluate((el: HTMLElement) => el.click());
+
+  await expect(page.getByTestId('weather-source')).toContainText('Stored report from 13 Oct 2026');
+  await expect(panel(page)).toContainText('Sol 4995');
+  await expect.poll(() => warnings.join('\n')).toMatch(/\[weather\] using stored report \(sol 4995\): request failed/);
 });
 
 test('visible planet labels never overlap', async ({ page }) => {

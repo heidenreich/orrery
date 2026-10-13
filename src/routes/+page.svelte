@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import InfoPanel from '$lib/components/InfoPanel.svelte';
+  import { fetchLatestMarsReport, type WeatherResult } from '$lib/data/weather';
   import Orrery from '$lib/components/Orrery.svelte';
   import { planetPositions, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { marsSolDate, VALID_YEARS } from '$lib/orrery/orbits';
@@ -22,6 +23,7 @@
   // Null until the page runs in the browser, so the prerendered HTML never carries the build date.
   let simMs: number | null = $state(null);
   let positions: PositionsAU | null = $state(null);
+  let weather: WeatherResult | null = $state(null);
 
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const year = $derived(simMs === null ? null : new Date(simMs).getUTCFullYear());
@@ -31,6 +33,7 @@
     simMs = Date.now();
     // Seed positions so the panel has distances even if the 3D view never starts.
     positions = planetPositions(simMs);
+    fetchLatestMarsReport().then((w) => (weather = w));
     playing = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   });
 
@@ -78,7 +81,7 @@
   {/if}
 </div>
 
-<InfoPanel {selected} {simMs} {positions} onclose={() => (selected = null)} />
+<InfoPanel {selected} {simMs} {positions} {weather} onclose={() => (selected = null)} />
 
 <div class="controls surface" role="toolbar" aria-label="Time and view controls">
   <button class="ctl" aria-pressed={playing} onclick={() => (playing = !playing)}>

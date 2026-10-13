@@ -1,19 +1,38 @@
-// Latest Curiosity REMS entry seen in the NASA feed
-// (https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json), checked 2026-10-13.
-// Placeholder until the scheduled fetch writes static weather data.
+// Latest Curiosity REMS entry seen in the NASA feed, checked 2026-10-13.
+// Shown when the live feed can't be reached. Only the fields visible in that check are filled in.
 
 export interface MarsReport {
   sol: number;
+  /** ISO date, YYYY-MM-DD. */
   earthDate: string;
   /** Solar longitude in degrees: Mars's position in its orbit, 0° = northern spring equinox. */
-  ls: number;
+  ls: number | null;
   /** Mars month, 1–12. */
-  month: number;
+  month: number | null;
+  /** Air temperature, °C. */
+  minTemp: number | null;
+  maxTemp: number | null;
+  /** Atmospheric pressure, Pa. */
+  pressure: number | null;
+  /** Local times, as the feed gives them (e.g. "05:35"). */
+  sunrise: string | null;
+  sunset: string | null;
+  /** Sky condition, e.g. "Sunny". */
+  opacity: string | null;
 }
 
-export const LATEST_MARS_REPORT: MarsReport = {
+/** When the stored report was copied from the feed. */
+export const STORED_REPORT_CHECKED = '2026-10-13';
+
+export const STORED_MARS_REPORT: MarsReport = {
   sol: 4995,
   earthDate: '2026-08-25',
   ls: 341,
-  month: 12
+  month: 12,
+  minTemp: null,
+  maxTemp: null,
+  pressure: null,
+  sunrise: null,
+  sunset: null,
+  opacity: null
 };

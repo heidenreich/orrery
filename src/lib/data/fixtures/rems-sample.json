@@ -1,0 +1,46 @@
+{
+  "_note": "Constructed sample, not a recorded response. id, terrestrial_date, sol, ls and season match the live feed as seen on 2026-10-13; the other fields and values are assumed. Replace with a recorded response.",
+  "descriptions": {},
+  "soles": [
+    {
+      "id": "4746",
+      "terrestrial_date": "2026-08-25",
+      "sol": "4995",
+      "ls": "341",
+      "season": "Month 12",
+      "min_temp": "-78",
+      "max_temp": "-4",
+      "pressure": "862",
+      "pressure_string": "Higher",
+      "abs_humidity": "--",
+      "wind_speed": "--",
+      "wind_direction": "--",
+      "atmo_opacity": "Sunny",
+      "sunrise": "05:35",
+      "sunset": "17:41",
+      "local_uv_irradiance_index": "Moderate",
+      "min_gts_temp": "-85",
+      "max_gts_temp": "6"
+    },
+    {
+      "id": "4745",
+      "terrestrial_date": "2026-08-24",
+      "sol": "4994",
+      "ls": "340",
+      "season": "Month 12",
+      "min_temp": "--",
+      "max_temp": "--",
+      "pressure": "--",
+      "pressure_string": "--",
+      "abs_humidity": "--",
+      "wind_speed": "--",
+      "wind_direction": "--",
+      "atmo_opacity": "--",
+      "sunrise": "05:36",
+      "sunset": "17:41",
+      "local_uv_irradiance_index": "--",
+      "min_gts_temp": "--",
+      "max_gts_temp": "--"
+    }
+  ]
+}

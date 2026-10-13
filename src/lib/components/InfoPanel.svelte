@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { LATEST_MARS_REPORT as report } from '$lib/data/mars-report';
+  import { STORED_MARS_REPORT, STORED_REPORT_CHECKED } from '$lib/data/mars-report';
+  import type { WeatherResult } from '$lib/data/weather';
   import { bodyById, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { distance, length, marsSolDate } from '$lib/orrery/orbits';
 
@@ -7,10 +8,15 @@
     selected: BodyId | null;
     simMs: number | null;
     positions: PositionsAU | null;
+    /** Null while the live fetch is in flight. */
+    weather: WeatherResult | null;
     onclose: () => void;
   }
 
-  let { selected, simMs, positions, onclose }: Props = $props();
+  let { selected, simMs, positions, weather, onclose }: Props = $props();
+
+  const report = $derived(weather?.report ?? STORED_MARS_REPORT);
+  const fmtTemp = (c: number) => `${Math.round(c)} °C`;
 
   const body = $derived(selected ? bodyById(selected) : null);
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -72,12 +78,25 @@
         <dl class="stats">
           <dt>Earth date</dt>
           <dd>{fmtDate.format(new Date(`${report.earthDate}T00:00:00Z`))}</dd>
-          <dt>Solar longitude</dt>
-          <dd>Ls {report.ls}°</dd>
-          <dt>Mars month</dt>
-          <dd>{report.month} of 12</dd>
+          {#if report.minTemp !== null || report.maxTemp !== null}
+            <dt>Air temperature</dt>
+            <dd>{report.minTemp !== null ? fmtTemp(report.minTemp) : '?'} to {report.maxTemp !== null ? fmtTemp(report.maxTemp) : '?'}</dd>
+          {/if}
+          {#if report.pressure !== null}<dt>Pressure</dt><dd>{report.pressure.toLocaleString('en-US')} Pa</dd>{/if}
+          {#if report.sunrise && report.sunset}<dt>Daylight</dt><dd>{report.sunrise}–{report.sunset}</dd>{/if}
+          {#if report.opacity}<dt>Sky</dt><dd>{report.opacity}</dd>{/if}
+          {#if report.ls !== null}<dt>Solar longitude</dt><dd>Ls {report.ls}°</dd>{/if}
+          {#if report.month !== null}<dt>Mars month</dt><dd>{report.month} of 12</dd>{/if}
         </dl>
-        <p class="note">From NASA's REMS feed. Fixed for now; the scheduled fetch will keep it current.</p>
+        <p class="note" data-testid="weather-source">
+          {#if !weather}
+            Checking NASA's REMS feed…
+          {:else if weather.source === 'live'}
+            Fetched just now from NASA's REMS feed.
+          {:else}
+            Stored report from {fmtDate.format(new Date(`${STORED_REPORT_CHECKED}T00:00:00Z`))}. NASA's feed couldn't be reached; details are in the browser console.
+          {/if}
+        </p>
       </div>
     {/if}
 

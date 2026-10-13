@@ -57,7 +57,9 @@ src/
   lib/orrery/bodies.ts      Planet data: orbital elements, sizes, weather facts
   lib/orrery/scene.ts       three.js scene, camera and labels (no UI framework code)
   lib/orrery/textures.ts    Procedural planet, ring and glow textures
-  lib/data/mars-report.ts   Latest Curiosity report (placeholder, see below)
+  lib/data/rems.ts          Parser for NASA's REMS feed
+  lib/data/weather.ts       Live fetch with console logging and fallback
+  lib/data/mars-report.ts   Report type and the stored fallback report
   lib/components/           Orrery canvas and info panel
   routes/+page.svelte       The page: header, clock, controls
 tests/e2e/                  Browser smoke tests
@@ -67,10 +69,23 @@ tests/e2e/                  Browser smoke tests
 
 The Mars weather comes from NASA's REMS feed for Curiosity:
 `https://mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json`.
-It is undocumented, its values are strings, and it lags a few weeks behind.
-For now `src/lib/data/mars-report.ts` holds the latest entry by hand.
+It is undocumented, its values are strings (`"--"` when a reading is missing),
+and it lags a few weeks behind.
 
-Planned next step: a scheduled GitHub Action that fetches the feed, validates
-it, and writes `static/weather.json`, so the site stays current and keeps the
-last good report when NASA's feed is down. NOAA's space weather feed
+The page fetches the feed in the browser on load. If the request fails (network,
+CORS, timeout, bad data), it shows the stored report in
+`src/lib/data/mars-report.ts` and says so in the panel.
+
+Every step is logged to the browser console with a `[weather]` prefix: the
+request, HTTP status and headers, the newest raw entry, skipped entries,
+missing readings, and the reason for any fallback. Filter the console on
+`[weather]` to see them.
+
+Still unverified: whether NASA allows the cross-site request (CORS), and the
+names of fields beyond sol, date, `ls` and `season`. The sample in
+`src/lib/data/fixtures/rems-sample.json` is constructed, not recorded; replace
+it with a real response once one is captured.
+
+Next: a scheduled GitHub Action that writes the latest report to
+`static/weather.json`, so the fallback stays current. NOAA's space weather feed
 (`services.swpc.noaa.gov`) is a candidate second source.
