@@ -2,9 +2,9 @@
   import { onMount } from 'svelte';
   import InfoPanel from '$lib/components/InfoPanel.svelte';
   import Orrery from '$lib/components/Orrery.svelte';
-  import type { BodyId } from '$lib/orrery/bodies';
+  import { planetPositions, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { marsSolDate, VALID_YEARS } from '$lib/orrery/orbits';
-  import type { PositionsAU, ScaleMode } from '$lib/orrery/scene';
+  import type { ScaleMode } from '$lib/orrery/scene';
 
   const SPEEDS = [
     { value: 1, label: '1 day / s' },
@@ -19,14 +19,18 @@
   let daysPerSec = $state(10);
   let scale: ScaleMode = $state('compressed');
   let resetToNow = $state(0);
-  let simMs = $state(Date.now());
+  // Null until the page runs in the browser, so the prerendered HTML never carries the build date.
+  let simMs: number | null = $state(null);
   let positions: PositionsAU | null = $state(null);
 
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-  const year = $derived(new Date(simMs).getUTCFullYear());
-  const outOfRange = $derived(year < VALID_YEARS.from || year > VALID_YEARS.to);
+  const year = $derived(simMs === null ? null : new Date(simMs).getUTCFullYear());
+  const outOfRange = $derived(year !== null && (year < VALID_YEARS.from || year > VALID_YEARS.to));
 
   onMount(() => {
+    simMs = Date.now();
+    // Seed positions so the panel has distances even if the 3D view never starts.
+    positions = planetPositions(simMs);
     playing = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   });
 
@@ -61,9 +65,13 @@
 
 <div class="hud">
   <h1>Solar System <span>Orrery</span></h1>
-  <div class="clock">
-    {fmtDate.format(new Date(simMs))}
-    <small>Mars Sol Date {Math.floor(marsSolDate(simMs)).toLocaleString('en-US')}</small>
+  <div class="clock" data-testid="clock">
+    {#if simMs !== null}
+      {fmtDate.format(new Date(simMs))}
+      <small>Mars Sol Date {Math.floor(marsSolDate(simMs)).toLocaleString('en-US')}</small>
+    {:else}
+      &nbsp;<small>&nbsp;</small>
+    {/if}
   </div>
   {#if outOfRange}
     <div class="chip">Outside {VALID_YEARS.from}–{VALID_YEARS.to}: positions are approximate</div>

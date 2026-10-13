@@ -1,16 +1,19 @@
 name: CI
 
+# Branches are checked through their pull request, so each change runs once.
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# Superseded pull request runs are cancelled; runs on main finish so a deploy is never cut off.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   build:
@@ -28,12 +31,28 @@ jobs:
       - run: npm run check
       - run: npm test
 
+      - name: Install browser for smoke tests
+        run: npx playwright install --with-deps chromium
+
+      # Builds and serves the site at the root path, then checks it in a real browser.
+      - name: Smoke tests
+        run: npm run test:e2e
+
+      - name: Upload smoke test traces
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-report
+          path: test-results
+          retention-days: 7
+
       - name: Configure Pages
         id: pages
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v6
 
-      - name: Build
+      - name: Build for Pages
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: npm run build
         env:
           BASE_PATH: ${{ steps.pages.outputs.base_path }}

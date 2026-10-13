@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { ALL_BODIES, type BodyId } from '$lib/orrery/bodies';
-  import type { PositionsAU, ScaleMode } from '$lib/orrery/scene';
+  import { ALL_BODIES, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
+  import type { ScaleMode } from '$lib/orrery/scene';
 
   interface Props {
     selected: BodyId | null;
@@ -19,20 +19,27 @@
   let container: HTMLDivElement;
   const labels: Partial<Record<BodyId, HTMLElement>> = $state({});
   let scene: import('$lib/orrery/scene').OrreryScene | undefined = $state();
+  let failed = $state(false);
 
   onMount(() => {
     let disposed = false;
     // three.js needs the browser, so load it only on the client.
-    import('$lib/orrery/scene').then(({ OrreryScene }) => {
-      if (disposed) return;
-      scene = new OrreryScene({
-        container,
-        labels,
-        onSelect: (id) => onselect(id),
-        onTick: (ms, pos) => ontick(ms, pos)
+    import('$lib/orrery/scene')
+      .then(({ OrreryScene }) => {
+        if (disposed) return;
+        scene = new OrreryScene({
+          container,
+          labels,
+          onSelect: (id) => onselect(id),
+          onTick: (ms, pos) => ontick(ms, pos)
+        });
+        scene.playing = playing;
+      })
+      .catch((err) => {
+        // Usually no WebGL (disabled, or unsupported hardware); the panel and controls still work.
+        console.warn('3D view unavailable:', err);
+        failed = true;
       });
-      scene.playing = playing;
-    });
     return () => {
       disposed = true;
       scene?.destroy();
@@ -63,6 +70,13 @@
   aria-label="3D view of the solar system. Drag to rotate, scroll or pinch to zoom."
 ></div>
 
+{#if failed}
+  <div class="fallback" role="status">
+    <p class="eyebrow">3D view unavailable</p>
+    <p>This browser couldn't start WebGL, which the 3D view needs. Turning on hardware acceleration usually fixes it.</p>
+  </div>
+{/if}
+
 <div class="labels">
   {#each ALL_BODIES as b (b.id)}
     <button
@@ -89,6 +103,26 @@
     width: 100%;
     height: 100%;
     touch-action: none;
+  }
+
+  .fallback {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(360px, calc(100% - 32px));
+    box-sizing: border-box;
+    display: grid;
+    gap: 8px;
+    padding: 16px 18px;
+    border: 1px dashed var(--panel-line);
+    border-radius: 14px;
+    color: var(--ink-dim);
+  }
+
+  .fallback p {
+    margin: 0;
+    line-height: 1.5;
   }
 
   .labels {

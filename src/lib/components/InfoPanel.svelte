@@ -1,12 +1,11 @@
 <script lang="ts">
   import { LATEST_MARS_REPORT as report } from '$lib/data/mars-report';
-  import { bodyById, type BodyId } from '$lib/orrery/bodies';
+  import { bodyById, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { distance, length, marsSolDate } from '$lib/orrery/orbits';
-  import type { PositionsAU } from '$lib/orrery/scene';
 
   interface Props {
     selected: BodyId | null;
-    simMs: number;
+    simMs: number | null;
     positions: PositionsAU | null;
     onclose: () => void;
   }
@@ -25,7 +24,7 @@
 
   // Live distances for the selected body, or Mars on the overview.
   const live = $derived.by(() => {
-    if (!positions) return [];
+    if (!positions || simMs === null) return [];
     const earth = positions.earth;
     const id = selected ?? 'mars';
     if (id === 'sun') {

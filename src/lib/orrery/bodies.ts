@@ -1,4 +1,4 @@
-import type { OrbitalElements } from './orbits';
+import { heliocentric, type OrbitalElements, type Vec3 } from './orbits';
 
 export type BodyId =
   | 'sun'
@@ -134,4 +134,14 @@ export const PLANETS: Planet[] = [
 
 export const ALL_BODIES: Body[] = [SUN, ...PLANETS];
 export const bodyById = (id: BodyId) => ALL_BODIES.find((b) => b.id === id)!;
-export const planetById = (id: Exclude<BodyId, 'sun'>) => PLANETS.find((p) => p.id === id)!;
+export const planetById = (id: PlanetId) => PLANETS.find((p) => p.id === id)!;
+
+export type PlanetId = Exclude<BodyId, 'sun'>;
+export type PositionsAU = Record<PlanetId, Vec3>;
+
+/** Heliocentric ecliptic positions (AU) of every planet at a moment in time. */
+export function planetPositions(ms: number): PositionsAU {
+  const out = {} as PositionsAU;
+  for (const p of PLANETS) out[p.id as PlanetId] = heliocentric(p, ms);
+  return out;
+}

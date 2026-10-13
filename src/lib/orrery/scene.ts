@@ -1,15 +1,18 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { PLANETS, SUN, type BodyId, type Planet } from './bodies';
-import { heliocentric, orbitPath, type Vec3 } from './orbits';
+import { PLANETS, SUN, planetPositions, type BodyId, type Planet, type PlanetId, type PositionsAU } from './bodies';
+import { orbitPath, type Vec3 } from './orbits';
 import { glowTexture, planetTexture, ringTexture, seededRandom } from './textures';
 
 const DEG = Math.PI / 180;
 const DAY_MS = 86_400_000;
 const SUN_SIZE = 2.6;
+const LABEL_HEIGHT = 19;
+
+// When labels overlap, the earlier body in this list keeps its label.
+const LABEL_PRIORITY: BodyId[] = ['mars', 'earth', 'sun', 'jupiter', 'saturn', 'venus', 'mercury', 'uranus', 'neptune'];
 
 export type ScaleMode = 'compressed' | 'true';
-export type PositionsAU = Record<Exclude<BodyId, 'sun'>, Vec3>;
 
 export interface SceneOptions {
   container: HTMLElement;
@@ -61,7 +64,11 @@ export class OrreryScene {
   private lastMix = -1;
   private resizeObserver: ResizeObserver;
   private downAt: [number, number] | null = null;
+  private labelWidths = new Map<BodyId, number>();
+  private motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  private reduceMotion = this.motionQuery.matches;
 
+  /** Throws if WebGL is unavailable. */
   constructor(opts: SceneOptions) {
     this.opts = opts;
     const rand = seededRandom(7);
@@ -103,10 +110,11 @@ export class OrreryScene {
     this.addBelt(rand);
     for (const p of PLANETS) this.addPlanet(p, rand);
 
-    this.positions = this.positionsAt(this.simMs);
+    this.positions = planetPositions(this.simMs);
 
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown);
     this.renderer.domElement.addEventListener('pointerup', this.onPointerUp);
+    this.motionQuery.addEventListener('change', this.onMotionChange);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(opts.container);
     this.resize();
@@ -118,6 +126,7 @@ export class OrreryScene {
     this.resizeObserver.disconnect();
     this.renderer.domElement.removeEventListener('pointerdown', this.onPointerDown);
     this.renderer.domElement.removeEventListener('pointerup', this.onPointerUp);
+    this.motionQuery.removeEventListener('change', this.onMotionChange);
     this.controls.dispose();
     this.scene.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.Line || o instanceof THREE.Points || o instanceof THREE.Sprite) {
@@ -158,12 +167,6 @@ export class OrreryScene {
     if (r === 0) return vAU.clone();
     const d = fCompressed(r) + (fTrue(r) - fCompressed(r)) * this.scaleMix;
     return vAU.clone().multiplyScalar(d / r);
-  }
-
-  private positionsAt(ms: number) {
-    const out = {} as PositionsAU;
-    for (const p of PLANETS) out[p.id as keyof PositionsAU] = heliocentric(p, ms);
-    return out;
   }
 
   private addStars(rand: () => number) {
@@ -258,6 +261,10 @@ export class OrreryScene {
     this.camera.updateProjectionMatrix();
   }
 
+  private onMotionChange = (e: MediaQueryListEvent) => {
+    this.reduceMotion = e.matches;
+  };
+
   private onPointerDown = (e: PointerEvent) => {
     this.downAt = [e.clientX, e.clientY];
   };
@@ -279,16 +286,17 @@ export class OrreryScene {
     if (this.playing) this.simMs += this.daysPerSec * DAY_MS * dt;
 
     if (this.scaleMix !== this.scaleGoal) {
-      this.scaleMix += (this.scaleGoal - this.scaleMix) * Math.min(1, dt * 4);
+      this.scaleMix += (this.scaleGoal - this.scaleMix) * this.ease(dt * 4);
       if (Math.abs(this.scaleGoal - this.scaleMix) < 0.002) this.scaleMix = this.scaleGoal;
     }
 
-    this.positions = this.positionsAt(this.simMs);
+    this.positions = planetPositions(this.simMs);
+    const spin = this.reduceMotion ? 0 : dt;
     for (const n of this.nodes) {
-      n.holder.position.copy(this.scaled(toScene(this.positions[n.planet.id as keyof PositionsAU])));
-      n.mesh.rotation.y += dt * 0.6;
+      n.holder.position.copy(this.scaled(toScene(this.positions[n.planet.id as PlanetId])));
+      n.mesh.rotation.y += spin * 0.6;
     }
-    this.sunMesh.rotation.y += dt * 0.05;
+    this.sunMesh.rotation.y += spin * 0.05;
 
     // Orbits drift slowly; redraw on scale changes or after a decade of simulated time.
     if (this.lastMix !== this.scaleMix || this.lastOrbitMs === null || Math.abs(this.simMs - this.lastOrbitMs) > 3650 * DAY_MS) {
@@ -309,37 +317,64 @@ export class OrreryScene {
     this.raf = requestAnimationFrame(this.frame);
   };
 
+  /** Fraction of the remaining distance to cover this frame; 1 (jump) when motion is reduced. */
+  private ease(rate: number) {
+    return this.reduceMotion ? 1 : Math.min(1, rate);
+  }
+
   private followSelection(dt: number) {
     const goal =
       this.selected && this.selected !== 'sun' ? this.node(this.selected).holder.position : new THREE.Vector3();
     // Ease the gap between the view centre and the goal, measured relative to the moving goal,
     // so a planet in motion stays centred instead of trailing.
     const before = this.controls.target.clone();
-    const gap = before.clone().sub(goal).multiplyScalar(1 - Math.min(1, dt * (this.selected ? 8 : 5)));
+    const gap = before.clone().sub(goal).multiplyScalar(1 - this.ease(dt * (this.selected ? 8 : 5)));
     this.controls.target.copy(goal).add(gap);
     this.camera.position.add(this.controls.target.clone().sub(before));
     if (this.desiredDist !== null) {
       const off = this.camera.position.clone().sub(this.controls.target);
       const len = off.length();
-      const next = len + (this.desiredDist - len) * Math.min(1, dt * 3.5);
+      const next = len + (this.desiredDist - len) * this.ease(dt * 3.5);
       this.camera.position.copy(this.controls.target).add(off.setLength(next));
       if (Math.abs(this.desiredDist - next) < 0.05) this.desiredDist = null;
     }
   }
 
+  private labelWidth(id: BodyId, el: HTMLElement) {
+    let width = this.labelWidths.get(id);
+    if (!width) {
+      el.hidden = false;
+      width = el.offsetWidth;
+      // Cache only a real measurement; fonts or layout may not be ready on the first frame.
+      if (width > 0) this.labelWidths.set(id, width);
+    }
+    return width;
+  }
+
+  // Place labels in priority order (selection first) and hide any that would overlap one already placed.
   private placeLabels() {
     const { clientWidth: w, clientHeight: h } = this.opts.container;
-    const place = (id: BodyId, pos: THREE.Vector3, size: number) => {
+    const order = this.selected
+      ? [this.selected, ...LABEL_PRIORITY.filter((id) => id !== this.selected)]
+      : LABEL_PRIORITY;
+    const placed: { x: number; y: number; w: number }[] = [];
+    for (const id of order) {
       const el = this.opts.labels[id];
-      if (!el) return;
-      const p = pos.clone();
-      p.y += size * 1.15;
+      if (!el) continue;
+      const isSun = id === SUN.id;
+      const p = (isSun ? this.sunMesh.position : this.node(id).holder.position).clone();
+      p.y += (isSun ? SUN_SIZE : this.node(id).size) * 1.15;
       p.project(this.camera);
-      const visible = p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
-      el.hidden = !visible;
-      if (visible) el.style.transform = `translate(${((p.x + 1) / 2) * w}px, ${((1 - p.y) / 2) * h}px) translate(-50%, -100%)`;
-    };
-    place(SUN.id, this.sunMesh.position, SUN_SIZE);
-    for (const n of this.nodes) place(n.planet.id, n.holder.position, n.size);
+      const width = this.labelWidth(id, el);
+      // Keep the whole label on screen, even when its planet sits at the edge.
+      const x = Math.min(Math.max(((p.x + 1) / 2) * w, width / 2), w - width / 2);
+      const y = ((1 - p.y) / 2) * h;
+      const onScreen = p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
+      const overlaps = placed.some((o) => Math.abs(o.x - x) < (o.w + width) / 2 && Math.abs(o.y - y) < LABEL_HEIGHT);
+      el.hidden = !onScreen || overlaps;
+      if (el.hidden) continue;
+      placed.push({ x, y, w: width });
+      el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+    }
   }
 }
