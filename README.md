@@ -70,7 +70,7 @@ src/
   lib/orrery/orbits.ts      Orbital math: positions, orbit paths, Mars Sol Date
   lib/orrery/bodies.ts      Planet data: orbital elements, sizes, weather facts
   lib/orrery/scene.ts       three.js scene, camera and labels (no UI framework code)
-  lib/orrery/textures.ts    Procedural planet, ring and glow textures
+  lib/orrery/textures.ts    Drawn planet, ring and glow textures (shown until the images load)
   lib/orrery/seasons.ts     Sunlight and seasons from each planet's orbit and pole
   lib/data/rems.ts          Parser for NASA's REMS feed
   lib/data/solar-wind.ts    Parser for NOAA's real-time solar wind feed
@@ -81,6 +81,7 @@ src/
   lib/components/           Orrery canvas, info panel, solar wind card
   routes/+page.svelte       The page: header, clock, controls
   routes/data/weather.json  Prerendered data file, built from NASA and NOAA
+static/textures/            Planet, Sun and ring images (Solar System Scope, CC BY 4.0)
 tests/e2e/                  Browser smoke tests
 ```
 
@@ -137,3 +138,15 @@ Notes on the feeds (checked 2026-10-13):
   on each build in case NOAA changes this.
 - `src/lib/data/fixtures/` holds the real newest REMS entry and two real solar
   wind records; the rest of each sample is constructed for tests.
+
+## Images
+
+The Sun, planet and Saturn ring images in `static/textures/` are from
+[Solar System Scope](https://www.solarsystemscope.com/textures/), based on NASA
+imagery, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+and credited in the page's overview panel. They came via the Qt 3D project's
+copy, were converted to WebP, and the ring image was cropped to one of its two
+identical halves (`static/textures/LICENSE.txt`). About 800 KB in all, loaded
+after the scene appears; until then, or if one fails, the drawn textures in
+`textures.ts` stay. Venus keeps its drawn cloud texture, since the only Venus
+map shows the radar-mapped surface beneath the clouds.

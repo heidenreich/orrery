@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { asset } from '$app/paths';
   import { ALL_BODIES, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
-  import type { ScaleMode } from '$lib/orrery/scene';
+  import type { ScaleMode, TextureUrls } from '$lib/orrery/scene';
 
   interface Props {
     selected: BodyId | null;
@@ -17,6 +18,22 @@
   }
 
   let { selected, playing, daysPerSec, scale, resetToNow, onselect, ontick, onlimit }: Props = $props();
+
+  // Solar System Scope maps (CC BY 4.0, see static/textures/LICENSE.txt). Venus keeps its drawn
+  // cloud texture: the only Venus map shows the radar surface, which is always hidden by cloud.
+  const textures: TextureUrls = {
+    bodies: {
+      sun: asset('/textures/sun.webp'),
+      mercury: asset('/textures/mercury.webp'),
+      earth: asset('/textures/earth.webp'),
+      mars: asset('/textures/mars.webp'),
+      jupiter: asset('/textures/jupiter.webp'),
+      saturn: asset('/textures/saturn.webp'),
+      uranus: asset('/textures/uranus.webp'),
+      neptune: asset('/textures/neptune.webp')
+    },
+    ring: asset('/textures/saturn-ring.webp')
+  };
 
   let container: HTMLDivElement;
   const labels: Partial<Record<BodyId, HTMLElement>> = $state({});
@@ -36,7 +53,8 @@
           onSelect: (id) => onselect(id),
           onTick: (ms, pos) => ontick(ms, pos),
           onLimit: () => onlimit(),
-          onContext: (available) => (contextLost = !available)
+          onContext: (available) => (contextLost = !available),
+          textures
         });
         scene.playing = playing;
       })

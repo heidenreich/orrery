@@ -127,6 +127,10 @@
       </tbody>
     </table>
     <p class="hint">Choose a world here, from the World menu, or by clicking it. Drag to rotate, scroll or pinch to zoom.</p>
+    <p class="credit" data-testid="texture-credit">
+      Planet and Sun images by <a href="https://www.solarsystemscope.com/textures/" rel="noopener" target="_blank">Solar System Scope</a>,
+      based on NASA data, under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener" target="_blank">CC BY 4.0</a>.
+    </p>
   {:else}
     <header>
       <div>
@@ -327,6 +331,22 @@
   .hint {
     font-size: 12.5px;
     color: var(--ink-dim);
+  }
+
+  .credit {
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--ink-dim);
+  }
+
+  .credit a {
+    color: inherit;
+    text-underline-offset: 2px;
+  }
+
+  .credit a:hover {
+    color: var(--ink);
   }
 
   .close {

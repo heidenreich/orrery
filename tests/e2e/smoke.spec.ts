@@ -324,3 +324,30 @@ test('the overview lists every world, and each row opens it', async ({ page }) =
   await table.getByRole('button', { name: 'Saturn' }).click();
   await expect(panel(page).getByRole('heading', { name: 'Saturn' })).toBeFocused();
 });
+
+test('loads the planet images and credits them', async ({ page }) => {
+  const errors = trackErrors(page);
+  const loaded: string[] = [];
+  page.on('response', (r) => r.ok() && /\/textures\/[\w-]+\.webp$/.test(r.url()) && loaded.push(r.url().split('/').pop()!));
+  await page.goto('/');
+  await expect.poll(() => loaded.sort()).toEqual(
+    ['earth', 'jupiter', 'mars', 'mercury', 'neptune', 'saturn-ring', 'saturn', 'sun', 'uranus'].map((n) => `${n}.webp`).sort()
+  );
+  const credit = page.getByTestId('texture-credit');
+  await expect(credit).toContainText('Solar System Scope');
+  await expect(credit.getByRole('link', { name: 'CC BY 4.0' })).toHaveAttribute('href', 'https://creativecommons.org/licenses/by/4.0/');
+  expect(errors).toEqual([]);
+});
+
+test('a planet image that fails to load leaves the drawn texture', async ({ page }) => {
+  const thrown: string[] = [];
+  const warnings: string[] = [];
+  page.on('pageerror', (e) => thrown.push(e.message));
+  page.on('console', (m) => m.type() === 'warning' && warnings.push(m.text()));
+  await page.route('**/textures/mars.webp', (route) => route.fulfill({ status: 404 }));
+  await page.goto('/');
+  await expect.poll(() => warnings.join('\n')).toContain("mars.webp didn't load");
+  await select(page, 'Mars');
+  await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
+  expect(thrown).toEqual([]);
+});

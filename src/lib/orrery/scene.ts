@@ -29,7 +29,21 @@ export interface SceneOptions {
   onLimit?: () => void;
   /** The browser dropped the WebGL context (false) or gave it back (true). */
   onContext?: (available: boolean) => void;
+  /** Image maps to use in place of the drawn textures, by body, plus Saturn's rings. */
+  textures?: TextureUrls;
 }
+
+export interface TextureUrls {
+  bodies: Partial<Record<BodyId, string>>;
+  /** A top-down picture of the rings laid out as RING_IMAGE describes. */
+  ring?: string;
+}
+
+// Measured on saturn-ring.webp (512 px square): the disc's centre and outer radius in pixels,
+// and its inner edge as a fraction of the outer one.
+const RING_IMAGE = { size: 512, cx: 254.5, cy: 257, outer: 253.5, innerRatio: 0.499 };
+// Saturn's rings in the image (C ring to F ring) run out to about 2.27 planet radii.
+const RING_OUTER = 2.27;
 
 /** Frame spacing when the only motion is slow planet spin in real time (about 30 fps). */
 const SPIN_ONLY_FRAME_MS = 33;
@@ -41,6 +55,7 @@ interface PlanetNode {
   size: number;
   holder: THREE.Group;
   mesh: THREE.Mesh;
+  ring?: THREE.Mesh;
   line: THREE.Line;
 }
 
@@ -87,6 +102,7 @@ export class OrreryScene {
   private controlsMoving = true;
   private lastRender = 0;
   private contextLost = false;
+  private destroyed = false;
 
   /** Throws if WebGL is unavailable. */
   constructor(opts: SceneOptions) {
@@ -103,6 +119,7 @@ export class OrreryScene {
       throw err;
     }
     this.positions = planetPositions(this.simMs);
+    if (opts.textures) this.loadTextures(opts.textures);
     this.raf = requestAnimationFrame(this.frame);
   }
 
@@ -173,7 +190,48 @@ export class OrreryScene {
     this.opts.onContext?.(true);
   };
 
+  // The drawn textures show at once; each image replaces its planet's when it arrives, and a
+  // missing or broken file just leaves the drawn one in place.
+  private loadTextures(urls: TextureUrls) {
+    const loader = new THREE.TextureLoader();
+    const anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    const load = (url: string, apply: (t: THREE.Texture) => void) => {
+      loader.load(
+        url,
+        (t) => {
+          if (this.destroyed) return t.dispose();
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.anisotropy = anisotropy;
+          apply(t);
+          this.needsRender = true;
+        },
+        undefined,
+        () => console.warn(`Texture ${url} didn't load; keeping the drawn one.`)
+      );
+    };
+    const swap = (mesh: THREE.Mesh, t: THREE.Texture) => {
+      const m = mesh.material as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial;
+      m.map?.dispose();
+      m.map = t;
+      m.color.set(0xffffff);
+      m.needsUpdate = true;
+    };
+    for (const [id, url] of Object.entries(urls.bodies) as [BodyId, string][]) {
+      load(url, (t) => swap(id === 'sun' ? this.sunMesh : this.node(id).mesh, t));
+    }
+    const saturn = this.nodes.find((n) => n.ring);
+    if (urls.ring && saturn?.ring) {
+      const ring = saturn.ring;
+      load(urls.ring, (t) => {
+        ring.geometry.dispose();
+        ring.geometry = imageRingGeometry(saturn.size);
+        swap(ring, t);
+      });
+    }
+  }
+
   destroy() {
+    this.destroyed = true;
     cancelAnimationFrame(this.raf);
     this.resizeObserver.disconnect();
     const canvas = this.renderer.domElement;
@@ -271,6 +329,7 @@ export class OrreryScene {
     mesh.userData.id = p.id;
     const holder = new THREE.Group();
     holder.add(mesh);
+    let ring: THREE.Mesh | undefined;
     if (p.tilt) holder.rotation.z = p.tilt * DEG;
     if (p.rings) {
       const inner = size * 1.25, outer = size * 2.3;
@@ -279,7 +338,7 @@ export class OrreryScene {
       for (let i = 0; i < pos.count; i++) {
         uv.setXY(i, (Math.hypot(pos.getX(i), pos.getY(i)) - inner) / (outer - inner), 0.5);
       }
-      const ring = new THREE.Mesh(
+      ring = new THREE.Mesh(
         rg,
         new THREE.MeshBasicMaterial({ map: ringTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false })
       );
@@ -293,7 +352,7 @@ export class OrreryScene {
       new THREE.LineBasicMaterial({ color: ORBIT_COLOR, transparent: true, opacity: 0.35 })
     );
     this.scene.add(line);
-    this.nodes.push({ planet: p, size, holder, mesh, line });
+    this.nodes.push({ planet: p, size, holder, mesh, ring, line });
   }
 
   private updateOrbits() {
@@ -490,4 +549,17 @@ export class OrreryScene {
       el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
     }
   }
+}
+
+/** A flat ring textured straight from a top-down picture of the rings (RING_IMAGE). */
+function imageRingGeometry(planetSize: number) {
+  const outer = planetSize * RING_OUTER;
+  const g = new THREE.RingGeometry(outer * RING_IMAGE.innerRatio, outer, 128, 3);
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  const k = RING_IMAGE.outer / outer;
+  for (let i = 0; i < pos.count; i++) {
+    // Image rows run downward; three.js flips images so v runs upward.
+    uv.setXY(i, (RING_IMAGE.cx + pos.getX(i) * k) / RING_IMAGE.size, 1 - (RING_IMAGE.cy - pos.getY(i) * k) / RING_IMAGE.size);
+  }
+  return g;
 }

@@ -1,6 +1,6 @@
 // Checks the site that is about to be deployed: the real build, with its base path and live data.
 // Run after `npm run build`, with the same BASE_PATH: `npm run test:build`.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseWeatherData } from '../../src/lib/data/weather-data';
@@ -29,6 +29,14 @@ describe('built site', () => {
     const files = [...new Set([...refs, ...imports])];
     expect(files.length).toBeGreaterThan(3);
     expect(files.filter((f) => !existsSync(join(dir, f)))).toEqual([]);
+  });
+
+  it('ships every texture image the scripts ask for, with its licence', () => {
+    const scripts = readdirSync(join(dir, '_app'), { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.js'));
+    const wanted = new Set(scripts.flatMap((f) => [...read(join('_app', f)).matchAll(/textures\/([\w-]+\.webp)/g)].map((m) => m[1])));
+    expect(wanted.size).toBe(9);
+    expect([...wanted].filter((f) => !existsSync(join(dir, 'textures', f)))).toEqual([]);
+    expect(read('textures/LICENSE.txt')).toContain('Creative Commons Attribution 4.0');
   });
 
   it('ships a valid weather data file and reports what it holds', () => {
