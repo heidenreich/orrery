@@ -161,9 +161,33 @@ test('without WebGL it explains why and keeps the panel working', async ({ page 
   await expect(page.getByTestId('clock')).toContainText('Mars Sol Date');
 });
 
-test('starts paused when the viewer prefers reduced motion', async ({ page }) => {
+test('opens live in real time and says when the clock is simulated', async ({ page }) => {
+  await page.goto('/');
+  const status = page.getByTestId('clock-status');
+  const speed = page.getByRole('combobox', { name: 'Playback speed' });
+  const now = page.getByRole('button', { name: 'Now' });
+
+  await expect(status).toHaveText('Live');
+  await expect(speed.locator('option:checked')).toHaveText('Real time');
+  await expect(now).toBeDisabled();
+  await expect(page.getByTestId('clock')).toContainText(/\d{2}:\d{2} UTC/);
+
+  await speed.selectOption({ label: '1 year / s' });
+  await expect(status).toHaveText('Simulated');
+  await expect(now).toBeEnabled();
+
+  await now.click();
+  await expect(status).toHaveText('Live');
+  await expect(speed.locator('option:checked')).toHaveText('Real time');
+
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await expect(status).toHaveText('Paused');
+});
+
+test('stays live in real time when the viewer prefers reduced motion', async ({ page }) => {
+  // Real time moves too slowly to see, and the scene stops planet spin, so there is no motion to avoid.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await expect(page.locator('.stage canvas')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Play' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('clock-status')).toHaveText('Live');
 });

@@ -8,8 +8,10 @@
   import { planetPositions, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
   import { marsSolDate, VALID_YEARS } from '$lib/orrery/orbits';
   import type { ScaleMode } from '$lib/orrery/scene';
+  import { LIVE_TOLERANCE_MS, REAL_TIME } from '$lib/orrery/time';
 
   const SPEEDS = [
+    { value: REAL_TIME, label: 'Real time' },
     { value: 1, label: '1 day / s' },
     { value: 10, label: '10 days / s' },
     { value: 60, label: '2 months / s' },
@@ -18,8 +20,8 @@
   ];
 
   let selected: BodyId | null = $state(null);
-  let playing = $state(false);
-  let daysPerSec = $state(10);
+  let playing = $state(true);
+  let daysPerSec = $state(REAL_TIME);
   let scale: ScaleMode = $state('compressed');
   let resetToNow = $state(0);
   // Null until the page runs in the browser, so the prerendered HTML never carries the build date.
@@ -28,15 +30,39 @@
   let weather: WeatherData | null = $state(null);
 
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const fmtTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   const year = $derived(simMs === null ? null : new Date(simMs).getUTCFullYear());
   const outOfRange = $derived(year !== null && (year < VALID_YEARS.from || year > VALID_YEARS.to));
+
+  // The actual time, refreshed every second, to tell whether the clock shows now.
+  let now = $state(Date.now());
+  let lastTick = 0;
+  const status = $derived(
+    !playing ? 'Paused'
+      : daysPerSec === REAL_TIME && simMs !== null && Math.abs(simMs - now) < LIVE_TOLERANCE_MS ? 'Live'
+      : 'Simulated'
+  );
+
+  function goLive() {
+    daysPerSec = REAL_TIME;
+    playing = true;
+    resetToNow++;
+  }
 
   onMount(() => {
     simMs = Date.now();
     // Seed positions so the panel has distances even if the 3D view never starts.
     positions = planetPositions(simMs);
     loadWeather(resolve('/data/weather.json')).then((w) => (weather = w));
-    playing = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timer = setInterval(() => {
+      now = Date.now();
+      // Without the 3D scene nothing else advances the clock, so keep live mode live here.
+      if (now - lastTick > 2000 && playing && daysPerSec === REAL_TIME) {
+        simMs = now;
+        positions = planetPositions(now);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
   });
 
   function onkeydown(e: KeyboardEvent) {
@@ -63,6 +89,7 @@
   {resetToNow}
   onselect={(id) => (selected = id)}
   ontick={(ms, pos) => {
+    lastTick = Date.now();
     simMs = ms;
     positions = pos;
   }}
@@ -72,7 +99,10 @@
   <h1>Solar System <span>Orrery</span></h1>
   <div class="clock" data-testid="clock">
     {#if simMs !== null}
-      {fmtDate.format(new Date(simMs))}
+      <span class="when">
+        {fmtDate.format(new Date(simMs))} · {fmtTime.format(new Date(simMs))} UTC
+        <span class="status" class:live={status === 'Live'} data-testid="clock-status">{status}</span>
+      </span>
       <small>Mars Sol Date {Math.floor(marsSolDate(simMs)).toLocaleString('en-US')}</small>
     {:else}
       &nbsp;<small>&nbsp;</small>
@@ -92,7 +122,7 @@
   <select class="ctl" aria-label="Playback speed" bind:value={daysPerSec}>
     {#each SPEEDS as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
   </select>
-  <button class="ctl" onclick={() => resetToNow++}>Today</button>
+  <button class="ctl" onclick={goLive} disabled={status === 'Live'}>Now</button>
   <span class="grow"></span>
   <span class="ctl-label" id="scale-label">Distances</span>
   <div class="seg" role="group" aria-labelledby="scale-label">
@@ -126,6 +156,39 @@
   .clock {
     font: 500 13px/1.4 var(--font-data);
     font-variant-numeric: tabular-nums;
+  }
+
+  .when {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+
+  .status {
+    font: 600 10px/1 var(--font-body);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    border: 1px solid var(--panel-line);
+    border-radius: 99px;
+    padding: 3px 7px;
+  }
+
+  .status.live {
+    color: var(--live);
+    border-color: color-mix(in srgb, var(--live) 50%, transparent);
+  }
+
+  .status.live::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 5px;
+    border-radius: 50%;
+    background: var(--live);
+    vertical-align: 1px;
   }
 
   .clock small {

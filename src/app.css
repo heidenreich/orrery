@@ -8,6 +8,7 @@
   --sun: #f0b65a;
   --mars: #d9774a;
   --warn: #f5c451;
+  --live: #7fd6a4;
   --font-display: 'Syne', 'Avenir Next', 'Segoe UI', sans-serif;
   --font-body: 'Figtree', 'Segoe UI', system-ui, sans-serif;
   --font-data: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
@@ -54,8 +55,13 @@ body {
   cursor: pointer;
 }
 
-.ctl:hover {
+.ctl:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.11);
+}
+
+.ctl:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .ctl[aria-pressed='true'] {

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLANETS, SUN, planetPositions, type BodyId, type Planet, type PlanetId, type PositionsAU } from './bodies';
 import { orbitPath, type Vec3 } from './orbits';
+import { REAL_TIME } from './time';
 import { glowTexture, planetTexture, ringTexture, seededRandom } from './textures';
 
 const DEG = Math.PI / 180;
@@ -39,7 +40,7 @@ const fTrue = (r: number) => 12 * r;
 export class OrreryScene {
   simMs = Date.now();
   playing = true;
-  daysPerSec = 10;
+  daysPerSec = REAL_TIME;
 
   private opts: SceneOptions;
   private renderer: THREE.WebGLRenderer;
@@ -283,7 +284,11 @@ export class OrreryScene {
   private frame = (now: number) => {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
-    if (this.playing) this.simMs += this.daysPerSec * DAY_MS * dt;
+    if (this.playing) {
+      // Real time follows the system clock exactly, so it stays correct after the tab was in the background.
+      if (this.daysPerSec === REAL_TIME) this.simMs = Date.now();
+      else this.simMs += this.daysPerSec * DAY_MS * dt;
+    }
 
     if (this.scaleMix !== this.scaleGoal) {
       this.scaleMix += (this.scaleGoal - this.scaleMix) * this.ease(dt * 4);
