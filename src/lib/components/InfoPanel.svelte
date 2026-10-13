@@ -1,5 +1,6 @@
 <script lang="ts">
   import SolarWindCard from '$lib/components/SolarWindCard.svelte';
+  import SunAndSeasons from '$lib/components/SunAndSeasons.svelte';
   import { STORED_MARS_REPORT, STORED_REPORT_CHECKED } from '$lib/data/mars-report';
   import type { WeatherData } from '$lib/data/weather-data';
   import { bodyById, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
@@ -93,8 +94,10 @@
           {#if report.pressure !== null}<dt>Pressure</dt><dd>{report.pressure.toLocaleString('en-US')} Pa</dd>{/if}
           {#if report.sunrise && report.sunset}<dt>Daylight</dt><dd>{report.sunrise}–{report.sunset}</dd>{/if}
           {#if report.opacity}<dt>Sky</dt><dd>{report.opacity}</dd>{/if}
-          {#if report.ls !== null}<dt>Solar longitude</dt><dd>Ls {report.ls}°</dd>{/if}
-          {#if report.month !== null}<dt>Mars month</dt><dd>{report.month} of 12</dd>{/if}
+          {#if report.ls !== null || report.month !== null}
+            <dt>Season then</dt>
+            <dd>{[report.ls !== null ? `Ls ${report.ls}°` : '', report.month !== null ? `month ${report.month}` : ''].filter(Boolean).join(', ')}</dd>
+          {/if}
         </dl>
         <p class="note" data-testid="weather-source">
           {#if !weather}
@@ -115,6 +118,10 @@
     {/if}
 
     {@render stats(live)}
+
+    {#if body.id !== 'sun' && simMs !== null}
+      <SunAndSeasons id={body.id} {simMs} />
+    {/if}
 
     <dl class="stats">
       {#if body.year}<dt>Year</dt><dd>{body.year}</dd>{/if}

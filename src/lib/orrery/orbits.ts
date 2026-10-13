@@ -42,6 +42,16 @@ function elementsAt(o: OrbitalElements, T: number): Keplerian {
   return { a: v[0], e: v[1], I: v[2] * DEG, L: v[3] * DEG, varpi: v[4] * DEG, node: v[5] * DEG };
 }
 
+/** Semi-major axis (AU), eccentricity and unit orbit normal (ecliptic J2000) at a moment. */
+export function orbitShape(o: OrbitalElements, ms: number): { a: number; e: number; normal: Vec3 } {
+  const k = elementsAt(o, centuriesSinceJ2000(ms));
+  return {
+    a: k.a,
+    e: k.e,
+    normal: { x: Math.sin(k.I) * Math.sin(k.node), y: -Math.sin(k.I) * Math.cos(k.node), z: Math.cos(k.I) }
+  };
+}
+
 /** Heliocentric ecliptic J2000 coordinates (AU) for a given eccentric anomaly. */
 function fromEccentricAnomaly(k: Keplerian, E: number): Vec3 {
   const w = k.varpi - k.node;

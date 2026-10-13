@@ -62,6 +62,7 @@ src/
   lib/orrery/bodies.ts      Planet data: orbital elements, sizes, weather facts
   lib/orrery/scene.ts       three.js scene, camera and labels (no UI framework code)
   lib/orrery/textures.ts    Procedural planet, ring and glow textures
+  lib/orrery/seasons.ts     Sunlight and seasons from each planet's orbit and pole
   lib/data/rems.ts          Parser for NASA's REMS feed
   lib/data/solar-wind.ts    Parser for NOAA's real-time solar wind feed
   lib/data/weather-data.ts  Builds the data file, with fallback to the last good copy
@@ -73,6 +74,16 @@ src/
   routes/data/weather.json  Prerendered data file, built from NASA and NOAA
 tests/e2e/                  Browser smoke tests
 ```
+
+## Computed per planet
+
+Every planet panel shows sunlight and seasons for the date on the clock, with
+no data source: sunlight is 1361 W/m² divided by the square of the distance from
+the Sun, and seasons come from the planet's IAU pole direction against the
+direction of the Sun (solar longitude Ls and the latitude where the Sun is
+overhead). Checked against Curiosity's reported Ls (341.6° on 25 Aug 2026, to
+0.01°) and Earth's 2026 equinox and solstices. Mercury, Venus and Jupiter, tilted
+under 5°, are shown as having barely any seasons.
 
 ## Data
 

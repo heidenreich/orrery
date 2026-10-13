@@ -23,8 +23,9 @@ function trackErrors(page: Page) {
 
 const panel = (page: Page) => page.locator('aside.panel');
 const select = (page: Page, name: string) =>
-  // Labels move every frame, so click through the DOM rather than waiting for them to settle.
-  page.getByRole('button', { name, exact: true }).evaluate((el: HTMLElement) => el.click());
+  // Labels move every frame and hide when off screen (e.g. after zooming to another planet),
+  // so find them even when hidden and click through the DOM.
+  page.getByRole('button', { name, exact: true, includeHidden: true }).evaluate((el: HTMLElement) => el.click());
 
 test('renders the solar system and opens the Mars panel', async ({ page }) => {
   const errors = trackErrors(page);
@@ -71,6 +72,34 @@ test('shows live solar wind on the Sun panel', async ({ page }) => {
   await expect(card).toContainText('5.1 protons/cm³');
   await expect(card).toContainText('by SOLAR1');
   await expect(card.getByRole('img')).toBeVisible();
+});
+
+test('shows computed sunlight and seasons for each planet', async ({ page }) => {
+  await page.goto('/');
+  const section = page.getByTestId('sun-seasons');
+
+  await select(page, 'Mars');
+  await expect(section).toContainText(/Sunlight\s*\d+ W\/m² · \d+% of Earth's/);
+  await expect(section).toContainText(/Season\s*(Spring|Summer|Autumn|Winter) in the north/);
+  await expect(section).toContainText(/Next\s*Northern (spring|summer|autumn|winter) (equinox|solstice)/);
+
+  await expect(section).toContainText(/Over its orbit\s*490–713 W\/m²/);
+  await expect(panel(page)).toContainText(/Season then\s*Ls 341°, month 12/);
+
+  await select(page, 'Mercury');
+  await expect(section).toContainText(/Over its orbit\s*6,249 W\/m² to 14\.4 kW\/m²/);
+
+  await select(page, 'Jupiter');
+  await expect(section).toContainText('Barely any: axis tilted 3.1°');
+
+  await select(page, 'Venus');
+  await expect(section).toContainText('177.36°, so it spins backwards');
+
+  await select(page, 'Uranus');
+  await expect(section).toContainText('Each season lasts about 21 years');
+
+  await select(page, 'Sun');
+  await expect(section).toHaveCount(0);
 });
 
 test('falls back to the stored report when the data file is missing', async ({ page }) => {
