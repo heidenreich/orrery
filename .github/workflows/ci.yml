@@ -101,6 +101,8 @@ jobs:
             console.log(`Solar wind: ${d.solarWind.source}${w ? `, ${w.latest.speed} km/s at ${w.latest.time} from ${w.latest.source}, ${w.series.length} points` : ""}${d.solarWind.error ? ", error: " + d.solarWind.error : ""}`);
             const k = d.kp.summary;
             console.log(`Kp: ${d.kp.source}${k ? `, ${k.latest.kp} for ${k.latest.time}, ${k.series.length} intervals` : ""}${d.kp.error ? ", error: " + d.kp.error : ""}`);
+            const x = d.xray.summary;
+            console.log(`X-ray: ${d.xray.source}${x ? `, ${x.latest.flux} W/m² at ${x.latest.time}, 24 h peak ${x.peak.flux} at ${x.peak.time}, ${x.series.length} points` : ""}${d.xray.error ? ", error: " + d.xray.error : ""}`);
           ' | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload site

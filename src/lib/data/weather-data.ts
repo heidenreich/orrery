@@ -3,6 +3,7 @@
 
 import { fetchJson, type Logger } from './fetch-json';
 import { KP_URL, summarizeKp, type KpPoint, type KpSummary } from './kp';
+import { summarizeXray, XRAY_URL, type XrayPoint, type XraySummary } from './xray';
 import { STORED_MARS_REPORT, type MarsReport } from './mars-report';
 import { isIsoDate, REMS_FEED_URL, summarizeRems, type MarsHistoryPoint } from './rems';
 import { SOLAR_WIND_URL, summarizeSolarWind, type SolarWindPoint, type SolarWindSummary } from './solar-wind';
@@ -39,12 +40,21 @@ export interface KpData {
   error?: string;
 }
 
+/** The Sun's X-ray brightness, which classes solar flares. */
+export interface XrayData {
+  source: Exclude<DataSource, 'stored'> | 'none';
+  fetchedAt: string | null;
+  summary: XraySummary | null;
+  error?: string;
+}
+
 export interface WeatherData {
   version: 1;
   generatedAt: string;
   mars: MarsData;
   solarWind: SolarWindData;
   kp: KpData;
+  xray: XrayData;
 }
 
 export const STORED_WEATHER = (generatedAt: string): WeatherData => ({
@@ -52,13 +62,15 @@ export const STORED_WEATHER = (generatedAt: string): WeatherData => ({
   generatedAt,
   mars: { source: 'stored', fetchedAt: null, report: STORED_MARS_REPORT, history: [] },
   solarWind: { source: 'none', fetchedAt: null, summary: null },
-  kp: { source: 'none', fetchedAt: null, summary: null }
+  kp: { source: 'none', fetchedAt: null, summary: null },
+  xray: { source: 'none', fetchedAt: null, summary: null }
 });
 
 /** A reused solar wind reading older than this is dropped instead of being carried forward. */
 export const PREVIOUS_SOLAR_WIND_MAX_AGE_HOURS = 24;
-/** Likewise for a reused Kp value. */
+/** Likewise for a reused Kp value and X-ray reading. */
 export const PREVIOUS_KP_MAX_AGE_HOURS = 24;
+export const PREVIOUS_XRAY_MAX_AGE_HOURS = 24;
 
 // ---- Validation ----
 // The data file is read back from the live site (at build time) and by every visitor, so check
@@ -172,6 +184,24 @@ function kpSummary(v: unknown, at: string): KpSummary | null {
   return { latest: kpPoint(s.latest, `${at}.latest`), series: list(s.series, `${at}.series`, kpPoint, 100) };
 }
 
+function xrayPoint(v: unknown, at: string): XrayPoint {
+  const p = obj(v, at);
+  const flux = num(p.flux, `${at}.flux`);
+  if (flux <= 0 || flux > 1) throw new Invalid(`${at}.flux is not a plausible X-ray flux`);
+  return { time: instant(p.time, `${at}.time`), flux };
+}
+
+function xraySummary(v: unknown, at: string): XraySummary | null {
+  if (v === null || v === undefined) return null;
+  const s = obj(v, at);
+  const l = obj(s.latest, `${at}.latest`);
+  return {
+    latest: { ...xrayPoint(l, `${at}.latest`), satellite: textOrNull(l.satellite, `${at}.latest.satellite`) },
+    peak: xrayPoint(s.peak, `${at}.peak`),
+    series: list(s.series, `${at}.series`, xrayPoint, 200)
+  };
+}
+
 const errorText = (v: unknown, at: string) => textOrNull(v, at, 300) ?? undefined;
 
 /** Check a weather data file and return a clean copy, or the first problem found. */
@@ -205,7 +235,16 @@ export function parseWeatherData(v: unknown): { ok: true; data: WeatherData } | 
     };
     const kpError = errorText(k.error, 'kp.error');
     if (kpError) kp.error = kpError;
-    return { ok: true, data: { version: 1, generatedAt: instant(d.generatedAt, 'generatedAt'), mars, solarWind, kp } };
+    // Likewise for files from before X-ray flux was added.
+    const x = d.xray === undefined ? { source: 'none' } : obj(d.xray, 'xray');
+    const xray: XrayData = {
+      source: oneOf(x.source, ['live', 'previous', 'none'] as const, 'xray.source'),
+      fetchedAt: instantOrNull(x.fetchedAt, 'xray.fetchedAt'),
+      summary: xraySummary(x.summary, 'xray.summary')
+    };
+    const xrayError = errorText(x.error, 'xray.error');
+    if (xrayError) xray.error = xrayError;
+    return { ok: true, data: { version: 1, generatedAt: instant(d.generatedAt, 'generatedAt'), mars, solarWind, kp, xray } };
   } catch (err) {
     if (err instanceof Invalid) return { ok: false, reason: err.message };
     throw err;
@@ -231,10 +270,11 @@ export async function collectWeather(opts: CollectOptions = {}): Promise<Weather
     return data;
   }
 
-  const [rems, wind, kpFeed] = await Promise.all([
+  const [rems, wind, kpFeed, xrayFeed] = await Promise.all([
     fetchJson(REMS_FEED_URL, { fetch: doFetch, log, tag: '[rems]', timeoutMs: 30_000 }),
     fetchJson(SOLAR_WIND_URL, { fetch: doFetch, log, tag: '[solar-wind]', timeoutMs: 30_000 }),
-    fetchJson(KP_URL, { fetch: doFetch, log, tag: '[kp]', timeoutMs: 30_000 })
+    fetchJson(KP_URL, { fetch: doFetch, log, tag: '[kp]', timeoutMs: 30_000 }),
+    fetchJson(XRAY_URL, { fetch: doFetch, log, tag: '[xray]', timeoutMs: 30_000 })
   ]);
 
   const mars = rems.ok ? summarizeRems(rems.body, log) : rems;
@@ -249,8 +289,12 @@ export async function collectWeather(opts: CollectOptions = {}): Promise<Weather
   if (kp.ok) data.kp = { source: 'live', fetchedAt: at(), summary: kp.summary };
   else data.kp.error = kp.reason;
 
+  const xr = xrayFeed.ok ? summarizeXray(xrayFeed.body, log, { now: now().getTime() }) : xrayFeed;
+  if (xr.ok) data.xray = { source: 'live', fetchedAt: at(), summary: xr.summary };
+  else data.xray.error = xr.reason;
+
   // Keep the last good data for anything that failed this time.
-  if ((!mars.ok || !sw.ok || !kp.ok) && previousUrl) {
+  if ((!mars.ok || !sw.ok || !kp.ok || !xr.ok) && previousUrl) {
     const prev = await fetchJson(previousUrl, { fetch: doFetch, log, tag: '[data]', timeoutMs: 15_000 });
     const parsed = prev.ok ? parseWeatherData(prev.body) : prev;
     if (parsed.ok) {
@@ -266,6 +310,11 @@ export async function collectWeather(opts: CollectOptions = {}): Promise<Weather
         if (ageHours <= PREVIOUS_KP_MAX_AGE_HOURS) data.kp = { ...p.kp, source: 'previous', error: kp.reason };
         else log.warn('[kp]', `previous Kp is ${ageHours.toFixed(0)} h old; not reusing it`);
       }
+      if (!xr.ok && p.xray.summary) {
+        const ageHours = (now().getTime() - Date.parse(p.xray.summary.latest.time)) / 3_600_000;
+        if (ageHours <= PREVIOUS_XRAY_MAX_AGE_HOURS) data.xray = { ...p.xray, source: 'previous', error: xr.reason };
+        else log.warn('[xray]', `previous reading is ${ageHours.toFixed(0)} h old; not reusing it`);
+      }
     } else {
       log.warn('[data]', `previous data unavailable: ${parsed.reason}`);
     }
@@ -274,5 +323,6 @@ export async function collectWeather(opts: CollectOptions = {}): Promise<Weather
   if (!mars.ok) log.warn('[rems]', `NASA feed failed (${mars.reason}); Mars data is ${data.mars.source}`);
   if (!sw.ok) log.warn('[solar-wind]', `NOAA feed failed (${sw.reason}); solar wind is ${data.solarWind.source}`);
   if (!kp.ok) log.warn('[kp]', `NOAA Kp feed failed (${kp.reason}); Kp is ${data.kp.source}`);
+  if (!xr.ok) log.warn('[xray]', `NOAA X-ray feed failed (${xr.reason}); X-ray is ${data.xray.source}`);
   return data;
 }

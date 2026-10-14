@@ -5,6 +5,7 @@ import type { Logger } from './fetch-json';
 import { STORED_MARS_REPORT } from './mars-report';
 import { isIsoDate, parseSol, REMS_FEED_URL, summarizeRems } from './rems';
 import { KP_URL } from './kp';
+import { XRAY_URL } from './xray';
 import { SOLAR_WIND_URL, summarizeSolarWind } from './solar-wind';
 import { loadWeather } from './weather';
 import { collectWeather, parseWeatherData, type WeatherData } from './weather-data';
@@ -167,6 +168,21 @@ describe('collectWeather', () => {
     expect(d.kp).toMatchObject({ source: 'previous', summary: { latest: { kp: 3.33 } }, error: expect.stringContaining('request failed') });
   });
 
+  it('adds the Sun’s X-ray flux from the long-wave channel', async () => {
+    // Constructed, in the feed's shape (see xray.ts).
+    const records = [
+      { time_tag: '2026-10-13T12:50:00Z', satellite: 19, flux: 2.5e-6, energy: '0.1-0.8nm' },
+      { time_tag: '2026-10-13T12:50:00Z', satellite: 19, flux: 9e-5, energy: '0.05-0.4nm' }
+    ];
+    const d = await collectWeather({
+      fetch: routes({ [REMS_FEED_URL]: () => json(remsSample), [XRAY_URL]: () => json(records) }),
+      log: recorder(),
+      now: NOW
+    });
+    expect(d.xray).toMatchObject({ source: 'live', summary: { latest: { flux: 2.5e-6, satellite: '19' }, peak: { flux: 2.5e-6 } } });
+    expect(parseWeatherData(d)).toEqual({ ok: true, data: d });
+  });
+
   it('keeps the previous deploy’s data for a feed that fails', async () => {
     const previous: WeatherData = await collectWeather({
       fetch: routes({ [REMS_FEED_URL]: () => json(remsSample), [SOLAR_WIND_URL]: () => json(windSample.records) }),
@@ -228,7 +244,8 @@ describe('parseWeatherData', () => {
     generatedAt: '2026-10-13T13:00:00.000Z',
     mars: { source: 'live', fetchedAt: '2026-10-13T13:00:00.000Z', report: { ...STORED_MARS_REPORT }, history: [] },
     solarWind: { source: 'live', fetchedAt: '2026-10-13T13:00:00.000Z', summary: { latest: { time: '2026-10-13T12:55:00.000Z', speed: 538.2, density: 5.1, temperature: 201000, source: 'SOLAR1' }, series: [] } },
-    kp: { source: 'live', fetchedAt: '2026-10-13T13:00:00.000Z', summary: { latest: { time: '2026-10-13T09:00:00.000Z', kp: 3.33 }, series: [{ time: '2026-10-13T09:00:00.000Z', kp: 3.33 }] } }
+    kp: { source: 'live', fetchedAt: '2026-10-13T13:00:00.000Z', summary: { latest: { time: '2026-10-13T09:00:00.000Z', kp: 3.33 }, series: [{ time: '2026-10-13T09:00:00.000Z', kp: 3.33 }] } },
+    xray: { source: 'live', fetchedAt: '2026-10-13T13:00:00.000Z', summary: { latest: { time: '2026-10-13T12:58:00.000Z', flux: 1.45e-6, satellite: '19' }, peak: { time: '2026-10-13T08:05:00.000Z', flux: 3.4e-5 }, series: [{ time: '2026-10-13T12:58:00.000Z', flux: 1.45e-6 }] } }
   });
 
   it('accepts a good file and drops fields it does not know', () => {
@@ -246,6 +263,13 @@ describe('parseWeatherData', () => {
     expect(r.ok && r.data.kp).toEqual({ source: 'none', fetchedAt: null, summary: null });
   });
 
+  it('loads a file written before X-ray flux was added, as no X-ray data', () => {
+    const f = good();
+    delete f.xray;
+    const r = parseWeatherData(f);
+    expect(r.ok && r.data.xray).toEqual({ source: 'none', fetchedAt: null, summary: null });
+  });
+
   it('loads a file written before ground temperature and UV existed', () => {
     const f = good();
     delete f.mars.report.minGroundTemp;
@@ -259,6 +283,7 @@ describe('parseWeatherData', () => {
     ['an impossible date', (f) => (f.mars.report.earthDate = '2026-13-45'), 'mars.report.earthDate is not a YYYY-MM-DD date'],
     ['a summary without a reading', (f) => (f.solarWind.summary = { series: [] }), 'solarWind.summary.latest is not an object'],
     ['a speed that is not a number', (f) => (f.solarWind.summary.latest.speed = 'fast'), 'solarWind.summary.latest.speed is not a number'],
+    ['a negative X-ray flux', (f) => (f.xray.summary.peak.flux = -1), 'xray.summary.peak.flux is not a plausible X-ray flux'],
     ['a Kp beyond the scale', (f) => (f.kp.summary.latest.kp = 12), 'kp.summary.latest.kp is outside 0–9'],
     ['a Kp that is not a number', (f) => (f.kp.summary.series[0].kp = 'high'), 'kp.summary.series[0].kp is not a number'],
     ['an unknown source', (f) => (f.mars.source = 'guess'), 'mars.source is not one of live, previous, stored'],

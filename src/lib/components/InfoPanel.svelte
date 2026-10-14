@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import MarsHistory from '$lib/components/MarsHistory.svelte';
+  import FlareCard from '$lib/components/FlareCard.svelte';
   import KpCard from '$lib/components/KpCard.svelte';
   import SolarWindCard from '$lib/components/SolarWindCard.svelte';
   import SunAndSeasons from '$lib/components/SunAndSeasons.svelte';
@@ -212,6 +213,11 @@
         <SolarWindCard data={weather.solarWind} {now} />
       {:else if weather}
         <p class="empty" data-testid="solar-wind-empty">Live solar wind readings are unavailable right now.</p>
+      {/if}
+      {#if weather?.xray.summary}
+        <FlareCard data={weather.xray} {now} />
+      {:else if weather}
+        <p class="empty" data-testid="flares-empty">Live solar flare readings are unavailable right now.</p>
       {/if}
     {/if}
 

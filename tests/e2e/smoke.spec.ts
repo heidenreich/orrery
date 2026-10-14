@@ -17,6 +17,10 @@ function sampleAged(ageMinutes = 5): string {
   d.kp.fetchedAt = move(d.kp.fetchedAt);
   d.kp.summary.latest.time = move(d.kp.summary.latest.time);
   for (const p of d.kp.summary.series) p.time = move(p.time);
+  d.xray.fetchedAt = move(d.xray.fetchedAt);
+  d.xray.summary.latest.time = move(d.xray.summary.latest.time);
+  d.xray.summary.peak.time = move(d.xray.summary.peak.time);
+  for (const p of d.xray.summary.series) p.time = move(p.time);
   return JSON.stringify(d);
 }
 const sample = sampleAged();
@@ -464,4 +468,26 @@ test('Earth explains when space weather is unavailable', async ({ page }) => {
   await page.goto('/');
   await select(page, 'Earth');
   await expect(page.getByTestId('kp-empty')).toBeVisible();
+});
+
+test('the Sun shows solar flares: class now, 24-hour peak and radio blackout level', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  await select(page, 'Sun');
+  const card = page.getByTestId('flares');
+  await expect(card).toContainText(/C1\.\d\s*C-class/);
+  await expect(card).toContainText(/24 h peak\s*M2\.\d at/);
+  await expect(card).toContainText('R1 (minor) radio blackout');
+  await expect(card).toContainText('GOES-19');
+  await expect(card.locator('text')).toHaveText(['C', 'M', 'X']);
+  expect(errors).toEqual([]);
+});
+
+test('the Sun explains when flare readings are unavailable', async ({ page }) => {
+  const d = JSON.parse(sample);
+  delete d.xray;
+  await page.route(DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
+  await page.goto('/');
+  await select(page, 'Sun');
+  await expect(page.getByTestId('flares-empty')).toBeVisible();
 });
