@@ -48,9 +48,9 @@ describe('built site', () => {
   it('ships a valid weather data file and reports what it holds', () => {
     const parsed = parseWeatherData(JSON.parse(read('data/weather.json')));
     if (!parsed.ok) throw new Error(`data/weather.json is invalid: ${parsed.reason}`);
-    const { mars, solarWind } = parsed.data;
+    const { mars, solarWind, kp } = parsed.data;
     // Not a failure: a feed outage legitimately falls back. Printed so CI logs show what shipped.
-    console.log(`data: mars ${mars.source} (sol ${mars.report.sol}), solar wind ${solarWind.source}`);
+    console.log(`data: mars ${mars.source} (sol ${mars.report.sol}), solar wind ${solarWind.source}, kp ${kp.source}`);
     expect(JSON.stringify(parsed.data).length).toBeLessThan(50_000);
   });
 });

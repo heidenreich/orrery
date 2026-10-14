@@ -5,7 +5,8 @@
 // NOAA has served this product as an array of rows with a header row first
 // (["time_tag","Kp","a_running","station_count"], then ["2026-10-07 00:00:00.000","2.33",...])
 // and as an array of objects ({ "time_tag": ..., "Kp": 2.33, ... }). The parser accepts both,
-// numbers or numeric strings, and logs which shape it saw.
+// numbers or numeric strings, and logs which shape it saw. On 2026-10-14 it served 62 objects
+// (about 8 days), the newest for the interval that had ended most recently.
 
 import type { Logger } from './fetch-json';
 
