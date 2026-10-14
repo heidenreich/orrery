@@ -14,6 +14,9 @@ function sampleAged(ageMinutes = 5): string {
   d.solarWind.fetchedAt = move(d.solarWind.fetchedAt);
   d.solarWind.summary.latest.time = move(d.solarWind.summary.latest.time);
   for (const p of d.solarWind.summary.series) p.time = move(p.time);
+  d.kp.fetchedAt = move(d.kp.fetchedAt);
+  d.kp.summary.latest.time = move(d.kp.summary.latest.time);
+  for (const p of d.kp.summary.series) p.time = move(p.time);
   return JSON.stringify(d);
 }
 const sample = sampleAged();
@@ -438,4 +441,27 @@ test('planet panels show physical facts, moons, rings and missions', async ({ pa
   await select(page, 'Sun');
   await expect(page.getByTestId('facts')).toContainText('Made of');
   await expect(p).toContainText(/Mass\s*333,000 × Earth/);
+});
+
+test('Earth shows live space weather: Kp, storm level, a 3-day chart and where auroras reach', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  await select(page, 'Earth');
+  const card = page.getByTestId('kp');
+  await expect(card).toContainText(/Kp 3\.3\s*Unsettled/);
+  await expect(card).toContainText('Peak: Kp 5.3');
+  await expect(card.locator('rect')).toHaveCount(24);
+  await expect(card.locator('rect.storm')).toHaveCount(2);
+  await expect(card).toContainText('Iceland');
+  await expect(card).toContainText(/Covers\s*\d+ \w+, \d\d:\d\d–\d\d:\d\d UTC/);
+  expect(errors).toEqual([]);
+});
+
+test('Earth explains when space weather is unavailable', async ({ page }) => {
+  const d = JSON.parse(sample);
+  delete d.kp;
+  await page.route(DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
+  await page.goto('/');
+  await select(page, 'Earth');
+  await expect(page.getByTestId('kp-empty')).toBeVisible();
 });

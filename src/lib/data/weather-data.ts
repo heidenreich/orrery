@@ -2,6 +2,7 @@
 // NASA and NOAA, small enough for every visitor to download.
 
 import { fetchJson, type Logger } from './fetch-json';
+import { KP_URL, summarizeKp, type KpPoint, type KpSummary } from './kp';
 import { STORED_MARS_REPORT, type MarsReport } from './mars-report';
 import { isIsoDate, REMS_FEED_URL, summarizeRems, type MarsHistoryPoint } from './rems';
 import { SOLAR_WIND_URL, summarizeSolarWind, type SolarWindPoint, type SolarWindSummary } from './solar-wind';
@@ -30,22 +31,34 @@ export interface SolarWindData {
   error?: string;
 }
 
+/** Earth's geomagnetic activity (planetary K-index). */
+export interface KpData {
+  source: Exclude<DataSource, 'stored'> | 'none';
+  fetchedAt: string | null;
+  summary: KpSummary | null;
+  error?: string;
+}
+
 export interface WeatherData {
   version: 1;
   generatedAt: string;
   mars: MarsData;
   solarWind: SolarWindData;
+  kp: KpData;
 }
 
 export const STORED_WEATHER = (generatedAt: string): WeatherData => ({
   version: 1,
   generatedAt,
   mars: { source: 'stored', fetchedAt: null, report: STORED_MARS_REPORT, history: [] },
-  solarWind: { source: 'none', fetchedAt: null, summary: null }
+  solarWind: { source: 'none', fetchedAt: null, summary: null },
+  kp: { source: 'none', fetchedAt: null, summary: null }
 });
 
 /** A reused solar wind reading older than this is dropped instead of being carried forward. */
 export const PREVIOUS_SOLAR_WIND_MAX_AGE_HOURS = 24;
+/** Likewise for a reused Kp value. */
+export const PREVIOUS_KP_MAX_AGE_HOURS = 24;
 
 // ---- Validation ----
 // The data file is read back from the live site (at build time) and by every visitor, so check
@@ -146,6 +159,19 @@ function windSummary(v: unknown, at: string): SolarWindSummary | null {
   return { latest: { ...windPoint(l, `${at}.latest`), source }, series: list(s.series, `${at}.series`, windPoint) };
 }
 
+function kpPoint(v: unknown, at: string): KpPoint {
+  const p = obj(v, at);
+  const kp = num(p.kp, `${at}.kp`);
+  if (kp < 0 || kp > 9) throw new Invalid(`${at}.kp is outside 0–9`);
+  return { time: instant(p.time, `${at}.time`), kp };
+}
+
+function kpSummary(v: unknown, at: string): KpSummary | null {
+  if (v === null || v === undefined) return null;
+  const s = obj(v, at);
+  return { latest: kpPoint(s.latest, `${at}.latest`), series: list(s.series, `${at}.series`, kpPoint, 100) };
+}
+
 const errorText = (v: unknown, at: string) => textOrNull(v, at, 300) ?? undefined;
 
 /** Check a weather data file and return a clean copy, or the first problem found. */
@@ -170,7 +196,16 @@ export function parseWeatherData(v: unknown): { ok: true; data: WeatherData } | 
     };
     const windError = errorText(w.error, 'solarWind.error');
     if (windError) solarWind.error = windError;
-    return { ok: true, data: { version: 1, generatedAt: instant(d.generatedAt, 'generatedAt'), mars, solarWind } };
+    // Files from before Kp was added have no kp section.
+    const k = d.kp === undefined ? { source: 'none' } : obj(d.kp, 'kp');
+    const kp: KpData = {
+      source: oneOf(k.source, ['live', 'previous', 'none'] as const, 'kp.source'),
+      fetchedAt: instantOrNull(k.fetchedAt, 'kp.fetchedAt'),
+      summary: kpSummary(k.summary, 'kp.summary')
+    };
+    const kpError = errorText(k.error, 'kp.error');
+    if (kpError) kp.error = kpError;
+    return { ok: true, data: { version: 1, generatedAt: instant(d.generatedAt, 'generatedAt'), mars, solarWind, kp } };
   } catch (err) {
     if (err instanceof Invalid) return { ok: false, reason: err.message };
     throw err;
@@ -196,9 +231,10 @@ export async function collectWeather(opts: CollectOptions = {}): Promise<Weather
     return data;
   }
 
-  const [rems, wind] = await Promise.all([
+  const [rems, wind, kpFeed] = await Promise.all([
     fetchJson(REMS_FEED_URL, { fetch: doFetch, log, tag: '[rems]', timeoutMs: 30_000 }),
-    fetchJson(SOLAR_WIND_URL, { fetch: doFetch, log, tag: '[solar-wind]', timeoutMs: 30_000 })
+    fetchJson(SOLAR_WIND_URL, { fetch: doFetch, log, tag: '[solar-wind]', timeoutMs: 30_000 }),
+    fetchJson(KP_URL, { fetch: doFetch, log, tag: '[kp]', timeoutMs: 30_000 })
   ]);
 
   const mars = rems.ok ? summarizeRems(rems.body, log) : rems;
@@ -209,8 +245,12 @@ export async function collectWeather(opts: CollectOptions = {}): Promise<Weather
   if (sw.ok) data.solarWind = { source: 'live', fetchedAt: at(), summary: sw.summary };
   else data.solarWind.error = sw.reason;
 
+  const kp = kpFeed.ok ? summarizeKp(kpFeed.body, log, { now: now().getTime() }) : kpFeed;
+  if (kp.ok) data.kp = { source: 'live', fetchedAt: at(), summary: kp.summary };
+  else data.kp.error = kp.reason;
+
   // Keep the last good data for anything that failed this time.
-  if ((!mars.ok || !sw.ok) && previousUrl) {
+  if ((!mars.ok || !sw.ok || !kp.ok) && previousUrl) {
     const prev = await fetchJson(previousUrl, { fetch: doFetch, log, tag: '[data]', timeoutMs: 15_000 });
     const parsed = prev.ok ? parseWeatherData(prev.body) : prev;
     if (parsed.ok) {
@@ -221,6 +261,11 @@ export async function collectWeather(opts: CollectOptions = {}): Promise<Weather
         if (ageHours <= PREVIOUS_SOLAR_WIND_MAX_AGE_HOURS) data.solarWind = { ...p.solarWind, source: 'previous', error: sw.reason };
         else log.warn('[solar-wind]', `previous reading is ${ageHours.toFixed(0)} h old; not reusing it`);
       }
+      if (!kp.ok && p.kp.summary) {
+        const ageHours = (now().getTime() - Date.parse(p.kp.summary.latest.time)) / 3_600_000;
+        if (ageHours <= PREVIOUS_KP_MAX_AGE_HOURS) data.kp = { ...p.kp, source: 'previous', error: kp.reason };
+        else log.warn('[kp]', `previous Kp is ${ageHours.toFixed(0)} h old; not reusing it`);
+      }
     } else {
       log.warn('[data]', `previous data unavailable: ${parsed.reason}`);
     }
@@ -228,5 +273,6 @@ export async function collectWeather(opts: CollectOptions = {}): Promise<Weather
 
   if (!mars.ok) log.warn('[rems]', `NASA feed failed (${mars.reason}); Mars data is ${data.mars.source}`);
   if (!sw.ok) log.warn('[solar-wind]', `NOAA feed failed (${sw.reason}); solar wind is ${data.solarWind.source}`);
+  if (!kp.ok) log.warn('[kp]', `NOAA Kp feed failed (${kp.reason}); Kp is ${data.kp.source}`);
   return data;
 }

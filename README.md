@@ -77,6 +77,7 @@ src/
   lib/orrery/seasons.ts     Sunlight and seasons from each planet's orbit and pole
   lib/data/rems.ts          Parser for NASA's REMS feed
   lib/data/solar-wind.ts    Parser for NOAA's real-time solar wind feed
+  lib/data/kp.ts            Parser for NOAA's planetary K-index, storm level and aurora guide
   lib/data/weather-data.ts  Builds the data file, with fallback to the last good copy
   lib/data/weather.ts       Loads the data file in the browser
   lib/data/fetch-json.ts    Fetch with timeout and console logging
@@ -125,6 +126,7 @@ the site is built. The browser never contacts NASA or NOAA.
 | --- | --- | --- | --- |
 | Curiosity REMS weather | `mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json` | ~2 MB, whole mission | Newest report, last 60 sols |
 | NOAA real-time solar wind | `services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json` | ~2.6 MB, 1-minute records | Newest reading, last 24 h at 10-minute steps |
+| NOAA planetary K-index (Kp) | `services.swpc.noaa.gov/products/noaa-planetary-k-index.json` | small, 3-hourly for about a week | Newest value, last 3 days |
 
 At build time `src/routes/data/weather.json/+server.ts` fetches both feeds and
 writes the file. When a feed fails, the build reuses that part of the live
@@ -133,7 +135,7 @@ good data instead of replacing it. With no previous copy, the Mars panel shows
 the stored report in `src/lib/data/mars-report.ts` and the solar wind is hidden.
 Set `ORRERY_OFFLINE=1` to build without any network requests.
 
-Logging: the build logs under `[rems]`, `[solar-wind]` and `[data]` (visible in
+Logging: the build logs under `[rems]`, `[solar-wind]`, `[kp]` and `[data]` (visible in
 the CI log), and the browser logs loading the file under `[weather]`.
 
 Notes on the feeds (checked 2026-10-13):

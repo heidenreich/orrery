@@ -99,6 +99,8 @@ jobs:
             const w = d.solarWind.summary;
             console.log(`Mars: ${d.mars.source}, sol ${d.mars.report.sol} (${d.mars.report.earthDate})${d.mars.error ? ", error: " + d.mars.error : ""}`);
             console.log(`Solar wind: ${d.solarWind.source}${w ? `, ${w.latest.speed} km/s at ${w.latest.time} from ${w.latest.source}, ${w.series.length} points` : ""}${d.solarWind.error ? ", error: " + d.solarWind.error : ""}`);
+            const k = d.kp.summary;
+            console.log(`Kp: ${d.kp.source}${k ? `, ${k.latest.kp} for ${k.latest.time}, ${k.series.length} intervals` : ""}${d.kp.error ? ", error: " + d.kp.error : ""}`);
           ' | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload site

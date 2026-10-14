@@ -23,7 +23,7 @@
   let daysPerSec = $state(REAL_TIME);
   const SITE_URL = 'https://heidenreich.github.io/orrery';
   const DESCRIPTION =
-    'Interactive 3D solar system: real planet positions, distances, sunlight and seasons, with live solar wind and Mars weather.';
+    'Interactive 3D solar system: real planet positions, distances, sunlight and seasons, with live solar wind, Earth space weather and Mars weather.';
 
   let scale: ScaleMode = $state('compressed');
   let resetToNow = $state(0);

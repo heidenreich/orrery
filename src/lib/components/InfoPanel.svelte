@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import MarsHistory from '$lib/components/MarsHistory.svelte';
+  import KpCard from '$lib/components/KpCard.svelte';
   import SolarWindCard from '$lib/components/SolarWindCard.svelte';
   import SunAndSeasons from '$lib/components/SunAndSeasons.svelte';
   import { ago, celsius, km, lightTime, seasonWords } from '$lib/format';
@@ -133,8 +134,8 @@
     </header>
     <p>
       Where every planet is, how far away, how much sunlight it gets and what season it is, for the date
-      shown. Two worlds have live data: the solar wind at the Sun, and the latest weather report from
-      NASA's Curiosity rover on Mars.
+      shown. Three worlds have live data: the solar wind at the Sun, space
+      weather and auroras at Earth, and the latest weather report from NASA's Curiosity rover on Mars.
     </p>
     <table class="worlds" data-testid="worlds">
       <caption class="eyebrow">Worlds right now</caption>
@@ -211,6 +212,14 @@
         <SolarWindCard data={weather.solarWind} {now} />
       {:else if weather}
         <p class="empty" data-testid="solar-wind-empty">Live solar wind readings are unavailable right now.</p>
+      {/if}
+    {/if}
+
+    {#if body.id === 'earth'}
+      {#if weather?.kp.summary}
+        <KpCard data={weather.kp} {now} />
+      {:else if weather}
+        <p class="empty" data-testid="kp-empty">Live space weather readings for Earth are unavailable right now.</p>
       {/if}
     {/if}
 
