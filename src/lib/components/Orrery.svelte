@@ -1,23 +1,27 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { asset } from '$app/paths';
-  import { ALL_BODIES, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
+  import { ALL_BODIES, type PositionsAU } from '$lib/orrery/bodies';
+  import { craftById, type WorldId } from '$lib/orrery/craft';
+  import type { SpacecraftData } from '$lib/data/spacecraft-data';
   import type { ScaleMode, TextureUrls } from '$lib/orrery/scene';
 
   interface Props {
-    selected: BodyId | null;
+    selected: WorldId | null;
+    /** Trajectories to draw; null until loaded or when unavailable. */
+    spacecraft: SpacecraftData | null;
     playing: boolean;
     daysPerSec: number;
     scale: ScaleMode;
     /** Bump to jump the clock back to the current date. */
     resetToNow: number;
-    onselect: (id: BodyId) => void;
+    onselect: (id: WorldId) => void;
     ontick: (simMs: number, positions: PositionsAU) => void;
     /** Playback reached the earliest or latest supported date and stopped. */
     onlimit: () => void;
   }
 
-  let { selected, playing, daysPerSec, scale, resetToNow, onselect, ontick, onlimit }: Props = $props();
+  let { selected, spacecraft, playing, daysPerSec, scale, resetToNow, onselect, ontick, onlimit }: Props = $props();
 
   // Solar System Scope maps (CC BY 4.0, see static/textures/LICENSE.txt). Venus keeps its drawn
   // cloud texture: the only Venus map shows the radar surface, which is always hidden by cloud.
@@ -36,7 +40,7 @@
   };
 
   let container: HTMLDivElement;
-  const labels: Partial<Record<BodyId, HTMLElement>> = $state({});
+  const labels: Partial<Record<WorldId, HTMLElement>> = $state({});
   let scene: import('$lib/orrery/scene').OrreryScene | undefined = $state();
   let failed = $state(false);
   let contextLost = $state(false);
@@ -77,6 +81,9 @@
   });
   $effect(() => {
     scene?.setScale(scale);
+  });
+  $effect(() => {
+    if (scene && spacecraft) scene.setSpacecraft(spacecraft);
   });
   $effect(() => {
     scene?.select(selected);
@@ -121,6 +128,18 @@
       onclick={() => onselect(b.id)}
     >
       {b.name}
+    </button>
+  {/each}
+  {#each spacecraft?.craft ?? [] as t (t.id)}
+    <button
+      type="button"
+      class="label craft"
+      class:active={selected === t.id}
+      bind:this={labels[t.id]}
+      hidden
+      onclick={() => onselect(t.id)}
+    >
+      {craftById(t.id).name}
     </button>
   {/each}
 </div>
@@ -196,6 +215,13 @@
 
   .label:hover {
     color: var(--ink);
+  }
+
+  .label.craft {
+    color: #8fe3ff;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: none;
   }
 
   .label.active {

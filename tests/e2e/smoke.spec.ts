@@ -25,6 +25,37 @@ function sampleAged(ageMinutes = 5): string {
 }
 const sample = sampleAged();
 
+// Constructed spacecraft tracks around today (not real trajectories): Voyager 1 coasting outward
+// at 170 AU, 16.9 km/s, and Parker on a 0.2 AU circle. Sampled evenly, as the real file is.
+function craftSample(): string {
+  const DAY = 86_400_000;
+  const start = Date.now() - 400 * DAY;
+  const v1 = { p: [] as number[], v: [] as number[] };
+  for (let i = 0; i <= 14; i++) {
+    const d = i * 60, vx = 0.0098; // AU/day
+    v1.p.push(-50 + vx * d * 0.3, 160 + vx * d * 0.9, 30 + vx * d * 0.3);
+    v1.v.push(vx * 0.3, vx * 0.9, vx * 0.3);
+  }
+  const parker = { p: [] as number[], v: [] as number[] };
+  const w = (2 * Math.PI) / 30; // one turn in 30 days
+  for (let i = 0; i <= 40; i++) {
+    const a = w * i;
+    parker.p.push(0.2 * Math.cos(a), 0.2 * Math.sin(a), 0);
+    parker.v.push(-0.2 * w * Math.sin(a), 0.2 * w * Math.cos(a), 0);
+  }
+  const fetchedAt = new Date().toISOString();
+  return JSON.stringify({
+    version: 1,
+    generatedAt: fetchedAt,
+    craft: [
+      { id: 'voyager-1', source: 'live', fetchedAt, start: new Date(start).toISOString(), stepMs: 60 * DAY, ...v1 },
+      { id: 'parker', source: 'live', fetchedAt, start: new Date(Date.now() - 20 * DAY).toISOString(), stepMs: DAY, ...parker }
+    ],
+    missing: []
+  });
+}
+const CRAFT_DATA = '**/data/spacecraft.json';
+
 // Serve a known data file (the test build skips the network), and record any request to the
 // upstream feeds: the browser should never call NASA or NOAA itself.
 let upstream: string[] = [];
@@ -32,6 +63,7 @@ test.beforeEach(async ({ page }) => {
   upstream = [];
   page.on('request', (r) => /mars\.nasa\.gov|swpc\.noaa\.gov/.test(r.url()) && upstream.push(r.url()));
   await page.route(DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: sample }));
+  await page.route(CRAFT_DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: craftSample() }));
 });
 
 // Fail the test on any console error or uncaught exception.
@@ -490,4 +522,47 @@ test('the Sun explains when flare readings are unavailable', async ({ page }) =>
   await page.goto('/');
   await select(page, 'Sun');
   await expect(page.getByTestId('flares-empty')).toBeVisible();
+});
+
+test('spacecraft appear in the World menu and open a panel with distance, signal time and speed', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  const world = page.getByRole('combobox', { name: 'World' });
+  await expect(world.locator('optgroup[label="Spacecraft"] option')).toHaveText(['Voyager 1', 'Parker Solar Probe']);
+
+  await world.selectOption({ label: 'Voyager 1' });
+  const p = panel(page);
+  await expect(p.getByRole('heading', { name: 'Voyager 1' })).toBeVisible();
+  await expect(p).toContainText(/From the Sun\s*1\d\d\.\d\d AU/);
+  await expect(p).toContainText(/Radio signal takes\s*\d+ h/);
+  await expect(p).toContainText(/Speed\s*16\.9 km\/s/);
+  await expect(p).toContainText('interstellar space');
+  await expect(page.getByTestId('craft-source')).toContainText('Horizons');
+  await expect(labels(page).getByRole('button', { name: 'Voyager 1', includeHidden: true })).toHaveClass(/active/);
+
+  // Parker's label can be clicked like a planet's.
+  await world.selectOption({ label: 'Overview' });
+  await select(page, 'Parker Solar Probe');
+  await expect(p.getByRole('heading', { name: 'Parker Solar Probe' })).toBeVisible();
+  await expect(p).toContainText(/From the Sun\s*0\.200 AU/);
+  expect(errors).toEqual([]);
+});
+
+test('a spacecraft outside its known trajectory says when it can be seen', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('combobox', { name: 'World' }).selectOption({ label: 'Parker Solar Probe' });
+  // Jump the clock far back: Parker's sample covers only the last few weeks.
+  await page.getByRole('combobox', { name: 'Playback speed' }).selectOption({ label: '−10 days / s' });
+  await expect(page.getByTestId('craft-out-of-range')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('craft-out-of-range')).toContainText('Set the clock inside those dates');
+});
+
+test('without spacecraft data the orrery still works and the menu lists no spacecraft', async ({ page }) => {
+  await page.route(CRAFT_DATA, (route) => route.fulfill({ status: 404 }));
+  const thrown: string[] = [];
+  page.on('pageerror', (e) => thrown.push(e.message));
+  await page.goto('/');
+  await expect(labels(page).getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
+  await expect(page.locator('optgroup[label="Spacecraft"]')).toHaveCount(0);
+  expect(thrown).toEqual([]);
 });

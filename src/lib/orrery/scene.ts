@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLANETS, SUN, planetPositions, type BodyId, type Planet, type PlanetId, type PositionsAU } from './bodies';
-import { orbitPath } from './orbits';
+import { orbitPath, type Vec3 } from './orbits';
 import { poleQuaternion, toScene } from './axes';
+import { craftState, trackEnd, type CraftTrack, type SpacecraftData } from '../data/spacecraft-data';
+import { isCraftId, type CraftId, type WorldId } from './craft';
 import { SPIN_TILT } from './seasons';
 import { REAL_TIME, SIM_MAX_MS, SIM_MIN_MS } from './time';
 import { glowTexture, planetTexture, ringTexture, seededRandom } from './textures';
@@ -28,8 +30,8 @@ export type ScaleMode = 'compressed' | 'true';
 
 export interface SceneOptions {
   container: HTMLElement;
-  labels: Partial<Record<BodyId, HTMLElement>>;
-  onSelect: (id: BodyId) => void;
+  labels: Partial<Record<WorldId, HTMLElement>>;
+  onSelect: (id: WorldId) => void;
   /** Called a few times per second with the simulated time and real positions. */
   onTick: (simMs: number, positions: PositionsAU) => void;
   /** Playback reached SIM_MIN_MS or SIM_MAX_MS and stopped there. */
@@ -56,6 +58,20 @@ const RING_OUTER = 2.27;
 const SPIN_ONLY_FRAME_MS = 33;
 /** While playing with nothing visibly moving, redraw this often so real-time positions stay current. */
 const IDLE_FRAME_MS = 1000;
+
+interface CraftNode {
+  track: CraftTrack;
+  marker: THREE.Sprite;
+  /** The path flown so far, drawn up to the clock's time. */
+  trail: THREE.Line;
+  /** Where it is at the clock's time, AU; null outside its trajectory. */
+  posAU: Vec3 | null;
+}
+
+const CRAFT_COLOR = 0x8fe3ff;
+/** Trail points drawn per trajectory step, along the same curve the marker follows. */
+const TRAIL_SUBSTEPS = 4;
+const CRAFT_TRAIL = 0x4f8fa8;
 
 interface PlanetNode {
   planet: Planet;
@@ -89,7 +105,9 @@ export class OrreryScene {
 
   private scaleMix = 0;
   private scaleGoal = 0;
-  private selected: BodyId | null = null;
+  private selected: WorldId | null = null;
+  private craft: CraftNode[] = [];
+  private craftTexture: THREE.Texture | null = null;
   private desiredDist: number | null = null;
 
   private raf = 0;
@@ -104,7 +122,7 @@ export class OrreryScene {
   private free = { x: 1, y: 1 };
   private resizeObserver!: ResizeObserver;
   private downAt: [number, number] | null = null;
-  private labelWidths = new Map<BodyId, number>();
+  private labelWidths = new Map<WorldId, number>();
   private motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   private reduceMotion = this.motionQuery.matches;
   // Rendering on demand: see frame().
@@ -275,9 +293,15 @@ export class OrreryScene {
     if (!this.selected) this.desiredDist = this.overviewDistance();
   }
 
-  select(id: BodyId | null) {
+  select(id: WorldId | null) {
     this.needsRender = true;
     this.selected = id;
+    for (const c of this.craft) {
+      const m = c.trail.material as THREE.LineBasicMaterial;
+      const on = c.track.id === id;
+      m.color.setHex(on ? ORBIT_SELECTED : CRAFT_TRAIL);
+      m.opacity = on ? 0.9 : 0.55;
+    }
     // Highlight only the selected planet's orbit.
     for (const n of this.nodes) {
       const m = n.line.material as THREE.LineBasicMaterial;
@@ -287,6 +311,7 @@ export class OrreryScene {
     }
     if (id === null) this.desiredDist = this.overviewDistance();
     else if (id === 'sun') this.desiredDist = 16 * this.bodyScale;
+    else if (isCraftId(id)) this.desiredDist = 14 * this.bodyScale;
     else this.desiredDist = this.closeUpDistance(this.node(id));
   }
 
@@ -296,6 +321,57 @@ export class OrreryScene {
   private orientPoles() {
     for (const n of this.nodes) {
       n.holder.quaternion.copy(poleQuaternion(n.planet.id as PlanetId, this.simMs));
+    }
+  }
+
+  /** Show these spacecraft (replacing any shown before). */
+  setSpacecraft(data: SpacecraftData) {
+    for (const c of this.craft) {
+      this.scene.remove(c.marker, c.trail);
+      c.marker.material.dispose();
+      c.trail.geometry.dispose();
+      (c.trail.material as THREE.Material).dispose();
+    }
+    this.craftTexture ??= markerTexture();
+    this.craft = data.craft.map((track) => {
+      const marker = new THREE.Sprite(
+        new THREE.SpriteMaterial({ map: this.craftTexture, color: CRAFT_COLOR, sizeAttenuation: false, depthWrite: false, transparent: true })
+      );
+      marker.scale.set(0.022, 0.022, 1);
+      marker.userData.id = track.id;
+      marker.visible = false;
+      const trail = new THREE.Line(
+        new THREE.BufferGeometry().setAttribute(
+          'position',
+          new THREE.BufferAttribute(new Float32Array(((track.p.length / 3 - 1) * TRAIL_SUBSTEPS + 1) * 3), 3)
+        ),
+        new THREE.LineBasicMaterial({ color: CRAFT_TRAIL, transparent: true, opacity: 0.55 })
+      );
+      this.scene.add(trail, marker);
+      return { track, marker, trail, posAU: null };
+    });
+    this.lastOrbitMs = null; // redraw trails with the orbits on the next frame
+    this.select(this.selected);
+    this.needsRender = true;
+  }
+
+  /** Where a spacecraft is at the clock's time, AU, or null if outside its trajectory. */
+  craftPosition(id: CraftId): Vec3 | null {
+    return this.craft.find((c) => c.track.id === id)?.posAU ?? null;
+  }
+
+  private placeCraft() {
+    for (const c of this.craft) {
+      const s = craftState(c.track, this.simMs);
+      c.posAU = s?.pos ?? null;
+      c.marker.visible = !!s;
+      c.trail.visible = !!s;
+      if (!s) continue;
+      c.marker.position.copy(this.scaled(toScene(s.pos)));
+      // Trail: every point up to now (they are evenly spaced from the start).
+      const total = c.trail.geometry.attributes.position.count;
+      const done = Math.floor(((this.simMs - Date.parse(c.track.start)) / c.track.stepMs) * TRAIL_SUBSTEPS) + 1;
+      c.trail.geometry.setDrawRange(0, Math.max(0, Math.min(total, done)));
     }
   }
 
@@ -389,6 +465,16 @@ export class OrreryScene {
   }
 
   private updateOrbits() {
+    for (const c of this.craft) {
+      const a = c.trail.geometry.attributes.position.array as Float32Array;
+      const t0 = Date.parse(c.track.start), dt = c.track.stepMs / TRAIL_SUBSTEPS;
+      for (let i = 0; i < a.length / 3; i++) {
+        const s = craftState(c.track, Math.min(trackEnd(c.track), t0 + i * dt));
+        if (s) a.set(this.scaled(toScene(s.pos)).toArray(), i * 3);
+      }
+      c.trail.geometry.attributes.position.needsUpdate = true;
+      c.trail.geometry.computeBoundingSphere();
+    }
     for (const n of this.nodes) {
       const a = n.line.geometry.attributes.position.array as Float32Array;
       orbitPath(n.planet, this.simMs).forEach((pt, i) => {
@@ -455,8 +541,9 @@ export class OrreryScene {
     const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     const ray = new THREE.Raycaster();
     ray.setFromCamera(ndc, this.camera);
-    const hit = ray.intersectObjects([this.sunMesh, ...this.nodes.map((n) => n.mesh)], false)[0];
-    if (hit) this.opts.onSelect(hit.object.userData.id as BodyId);
+    const markers = this.craft.filter((c) => c.marker.visible).map((c) => c.marker);
+    const hit = ray.intersectObjects([...markers, this.sunMesh, ...this.nodes.map((n) => n.mesh)], false)[0];
+    if (hit) this.opts.onSelect(hit.object.userData.id as WorldId);
   };
 
   // Draws only when something on screen can change: while paused with the camera still, nothing is
@@ -496,6 +583,7 @@ export class OrreryScene {
     }
 
     this.positions = planetPositions(this.simMs);
+    this.placeCraft();
     const spin = spinning ? step : 0;
     for (const n of this.nodes) {
       n.holder.position.copy(this.scaled(toScene(this.positions[n.planet.id as PlanetId])));
@@ -531,9 +619,19 @@ export class OrreryScene {
     return this.reduceMotion ? 1 : Math.min(1, rate);
   }
 
+  private focusPoint(): THREE.Vector3 {
+    const id = this.selected;
+    if (!id || id === 'sun') return new THREE.Vector3();
+    if (isCraftId(id)) {
+      const c = this.craft.find((n) => n.track.id === id);
+      // Outside its trajectory there is nothing to follow; stay where the view is.
+      return c?.marker.visible ? c.marker.position : this.controls.target.clone();
+    }
+    return this.node(id).holder.position;
+  }
+
   private followSelection(dt: number) {
-    const goal =
-      this.selected && this.selected !== 'sun' ? this.node(this.selected).holder.position : new THREE.Vector3();
+    const goal = this.focusPoint();
     // Ease the gap between the view centre and the goal, measured relative to the moving goal,
     // so a planet in motion stays centred instead of trailing.
     const before = this.controls.target.clone();
@@ -549,7 +647,7 @@ export class OrreryScene {
     }
   }
 
-  private labelWidth(id: BodyId, el: HTMLElement) {
+  private labelWidth(id: WorldId, el: HTMLElement) {
     let width = this.labelWidths.get(id);
     if (!width) {
       el.hidden = false;
@@ -578,21 +676,34 @@ export class OrreryScene {
   private placeLabels() {
     const { clientWidth: w, clientHeight: h } = this.opts.container;
     const avoid = this.avoidRects();
-    const order = this.selected
-      ? [this.selected, ...LABEL_PRIORITY.filter((id) => id !== this.selected)]
-      : LABEL_PRIORITY;
+    // Spacecraft labels come after every body's.
+    const all: WorldId[] = [...LABEL_PRIORITY, ...this.craft.map((c) => c.track.id)];
+    const order = this.selected ? [this.selected, ...all.filter((id) => id !== this.selected)] : all;
     const placed: { x: number; y: number; w: number }[] = [];
     for (const id of order) {
       const el = this.opts.labels[id];
       if (!el) continue;
-      const isSun = id === SUN.id;
-      const p = (isSun ? this.sunMesh.position : this.node(id).holder.position).clone();
-      p.y += (isSun ? SUN_SIZE : this.node(id).size) * this.bodyScale * 1.15;
+      let p: THREE.Vector3;
+      let lift = 0;
+      if (isCraftId(id)) {
+        const c = this.craft.find((n) => n.track.id === id);
+        if (!c || !c.marker.visible) {
+          el.hidden = true;
+          continue;
+        }
+        // Markers are a fixed size on screen, so lift their labels by pixels rather than distance.
+        p = c.marker.position.clone();
+        lift = 8;
+      } else {
+        const isSun = id === SUN.id;
+        p = (isSun ? this.sunMesh.position : this.node(id).holder.position).clone();
+        p.y += (isSun ? SUN_SIZE : this.node(id).size) * this.bodyScale * 1.15;
+      }
       p.project(this.camera);
       const width = this.labelWidth(id, el);
       // Keep the whole label on screen, even when its planet sits at the edge.
       const x = Math.min(Math.max(((p.x + 1) / 2) * w, width / 2), w - width / 2);
-      const y = ((1 - p.y) / 2) * h;
+      const y = ((1 - p.y) / 2) * h - lift;
       const onScreen = p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
       const overlaps = placed.some((o) => Math.abs(o.x - x) < (o.w + width) / 2 && Math.abs(o.y - y) < LABEL_HEIGHT);
       // The label's box: centred on x, with its bottom edge at y.
@@ -616,4 +727,29 @@ function imageRingGeometry(planetSize: number) {
     uv.setXY(i, (RING_IMAGE.cx + pos.getX(i) * k) / RING_IMAGE.size, 1 - (RING_IMAGE.cy - pos.getY(i) * k) / RING_IMAGE.size);
   }
   return g;
+}
+
+/** A small glowing diamond for spacecraft markers. */
+function markerTexture() {
+  const size = 64;
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d')!;
+  const mid = size / 2;
+  const halo = g.createRadialGradient(mid, mid, 0, mid, mid, mid);
+  halo.addColorStop(0, 'rgba(255,255,255,0.55)');
+  halo.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = halo;
+  g.fillRect(0, 0, size, size);
+  g.fillStyle = '#fff';
+  g.beginPath();
+  g.moveTo(mid, mid - 14);
+  g.lineTo(mid + 10, mid);
+  g.lineTo(mid, mid + 14);
+  g.lineTo(mid - 10, mid);
+  g.closePath();
+  g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }

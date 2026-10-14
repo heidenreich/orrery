@@ -12,13 +12,17 @@
   import { distance, length, marsSolDate } from '$lib/orrery/orbits';
   import { FACTS, MOONS_CHECKED, gravityText, massText } from '$lib/orrery/facts';
   import { northSeason } from '$lib/orrery/seasons';
+  import { craftById, isCraftId, type WorldId } from '$lib/orrery/craft';
+  import { AU_PER_DAY_KMS, craftState, trackEnd, type SpacecraftData } from '$lib/data/spacecraft-data';
 
   interface Props {
-    selected: BodyId | null;
+    selected: WorldId | null;
     simMs: number | null;
     positions: PositionsAU | null;
     /** Null while the data file is loading. */
     weather: WeatherData | null;
+    /** Spacecraft trajectories; null until loaded or when unavailable. */
+    spacecraft: SpacecraftData | null;
     /** The actual current time (ms), refreshed by the page, for "N min ago" text. */
     now: number;
     /** `fromKeyboard`: closed with Enter or Space rather than a click or tap. */
@@ -26,7 +30,7 @@
     onselect: (id: BodyId) => void;
   }
 
-  let { selected, simMs, positions, weather, now, onclose, onselect }: Props = $props();
+  let { selected, simMs, positions, weather, spacecraft, now, onclose, onselect }: Props = $props();
 
   const report = $derived(weather?.mars.report ?? STORED_MARS_REPORT);
   // Show the feed's wording in sentence case, with any underscores as spaces.
@@ -34,8 +38,25 @@
   const range = (lo: number | null | undefined, hi: number | null | undefined) =>
     `${lo != null ? celsius(lo) : '?'} to ${hi != null ? celsius(hi) : '?'}`;
 
-  const body = $derived(selected ? bodyById(selected) : null);
-  const facts = $derived(selected ? FACTS[selected] : null);
+  const bodyId = $derived(selected && !isCraftId(selected) ? selected : null);
+  const body = $derived(bodyId ? bodyById(bodyId) : null);
+  const facts = $derived(bodyId ? FACTS[bodyId] : null);
+
+  // The selected spacecraft, and where it is at the clock's time.
+  const craft = $derived(selected && isCraftId(selected) ? craftById(selected) : null);
+  const track = $derived(craft ? (spacecraft?.craft.find((t) => t.id === craft.id) ?? null) : null);
+  const craftNow = $derived(track && simMs !== null ? craftState(track, simMs) : null);
+  const craftRows = $derived.by(() => {
+    if (!craftNow || !positions) return [];
+    const p = craftNow.pos, v = craftNow.vel;
+    const d = distance(p, positions.earth);
+    return [
+      ['From the Sun', `${fmtAU(length(p))} · ${km(length(p))}`],
+      ['From Earth', `${fmtAU(d)} · ${km(d)}`],
+      ['Radio signal takes', lightTime(d)],
+      ['Speed', `${(length(v) * AU_PER_DAY_KMS).toFixed(1)} km/s relative to the Sun`]
+    ];
+  });
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const reportAge = $derived(ago(`${report.earthDate}T12:00:00Z`, now));
 
@@ -62,9 +83,9 @@
 
   // Distances for the selected body.
   const live = $derived.by(() => {
-    if (!positions || simMs === null || !selected) return [];
+    if (!positions || simMs === null || !bodyId) return [];
     const earth = positions.earth;
-    const id = selected;
+    const id = bodyId;
     if (id === 'sun') {
       const d = length(earth);
       return [['From Earth', `${fmtAU(d)} · ${km(d)}`], ['Sunlight takes', lightTime(d)]];
@@ -125,7 +146,42 @@
   data-label-avoid
   data-view-avoid
 >
-  {#if !body}
+  {#if craft}
+    <header>
+      <div>
+        <p class="eyebrow">Spacecraft · {craft.agency}</p>
+        <h2 tabindex="-1" bind:this={heading}>{craft.name}</h2>
+      </div>
+      <div class="actions">
+        {@render fold('details')}
+        <button class="close" aria-label="Close {craft.name} and return to the overview" onclick={(e) => onclose(e.detail === 0)}>×</button>
+      </div>
+    </header>
+    {#if craftNow}
+      {@render stats(craftRows)}
+    {:else if track}
+      <p class="empty" data-testid="craft-out-of-range">
+        Its trajectory here runs from {fmtDate.format(new Date(track.start))} to {fmtDate.format(new Date(trackEnd(track)))}.
+        Set the clock inside those dates to see where it was.
+      </p>
+    {/if}
+    <dl class="stats">
+      <dt>Launched</dt><dd>{fmtDate.format(new Date(`${craft.launched}T00:00:00Z`))}</dd>
+    </dl>
+    <div class="weather">
+      <p class="eyebrow section">Mission</p>
+      <ul>
+        {#each craft.about as a (a)}<li>{a}</li>{/each}
+      </ul>
+    </div>
+    {#if track}
+      <p class="note" data-testid="craft-source">
+        Trajectory from NASA JPL's Horizons system, fetched {ago(track.fetchedAt, now)}{track.source === 'previous'
+          ? ' (Horizons was unreachable at the last update, so this is the previous copy)'
+          : ''}.
+      </p>
+    {/if}
+  {:else if !body}
     <header>
       <div>
         <p class="eyebrow">Solar system</p>

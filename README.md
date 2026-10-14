@@ -79,6 +79,9 @@ src/
   lib/data/solar-wind.ts    Parser for NOAA's real-time solar wind feed
   lib/data/kp.ts            Parser for NOAA's planetary K-index, storm level and aurora guide
   lib/data/xray.ts          Parser for NOAA's GOES X-ray flux, flare class and radio blackout level
+  lib/data/horizons.ts      JPL Horizons requests and vector-table parser
+  lib/data/spacecraft-data.ts  Builds, checks and interpolates the spacecraft data file
+  lib/orrery/craft.ts       The spacecraft shown, with their Horizons IDs and trajectory windows
   lib/data/weather-data.ts  Builds the data file, with fallback to the last good copy
   lib/data/weather.ts       Loads the data file in the browser
   lib/data/fetch-json.ts    Fetch with timeout and console logging
@@ -120,14 +123,16 @@ orbit plane and 0.6% of its distance range. Playback stops at those years.
 
 ## Data
 
-The browser loads one small file, `data/weather.json` (a few KB), built when
-the site is built. The browser never contacts NASA or NOAA.
+The browser loads two files built with the site: `data/weather.json` (a few KB)
+and, for the 3D view, `data/spacecraft.json` (tens of KB). The browser never
+contacts NASA, NOAA or JPL.
 
 | Source | URL | Size | Kept |
 | --- | --- | --- | --- |
 | Curiosity REMS weather | `mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json` | ~2 MB, whole mission | Newest report, last 60 sols |
 | NOAA real-time solar wind | `services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json` | ~2.6 MB, 1-minute records | Newest reading, last 24 h at 10-minute steps |
 | NOAA GOES X-ray flux | `services.swpc.noaa.gov/json/goes/primary/xrays-1-day.json` | ~1 MB, 1-minute records, two channels | Newest 0.1–0.8 nm reading, 24 h peak, 24 h at 10-minute steps |
+| JPL Horizons spacecraft trajectories | `ssd.jpl.nasa.gov/api/horizons.api` | one request per spacecraft | Position and velocity at even steps, written to `data/spacecraft.json` |
 | NOAA planetary K-index (Kp) | `services.swpc.noaa.gov/products/noaa-planetary-k-index.json` | small, 3-hourly for about a week | Newest value, last 3 days |
 
 At build time `src/routes/data/weather.json/+server.ts` fetches both feeds and
@@ -137,7 +142,7 @@ good data instead of replacing it. With no previous copy, the Mars panel shows
 the stored report in `src/lib/data/mars-report.ts` and the solar wind is hidden.
 Set `ORRERY_OFFLINE=1` to build without any network requests.
 
-Logging: the build logs under `[rems]`, `[solar-wind]`, `[xray]`, `[kp]` and `[data]` (visible in
+Logging: the build logs under `[rems]`, `[solar-wind]`, `[xray]`, `[kp]`, `[craft]` and `[data]` (visible in
 the CI log), and the browser logs loading the file under `[weather]`.
 
 Notes on the feeds (checked 2026-10-13):

@@ -5,7 +5,10 @@
   import { loadWeather } from '$lib/data/weather';
   import type { WeatherData } from '$lib/data/weather-data';
   import Orrery from '$lib/components/Orrery.svelte';
-  import { ALL_BODIES, bodyById, planetPositions, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
+  import { ALL_BODIES, bodyById, planetPositions, type PositionsAU } from '$lib/orrery/bodies';
+  import { craftById, isCraftId, type WorldId } from '$lib/orrery/craft';
+  import { loadSpacecraft } from '$lib/data/spacecraft';
+  import type { SpacecraftData } from '$lib/data/spacecraft-data';
   import type { ScaleMode } from '$lib/orrery/scene';
   import { LIVE_TOLERANCE_MS, REAL_TIME, SIM_MAX_MS, SIM_MIN_MS } from '$lib/orrery/time';
 
@@ -18,7 +21,9 @@
     { value: -10, label: '−10 days / s' }
   ];
 
-  let selected: BodyId | null = $state(null);
+  let selected: WorldId | null = $state(null);
+  let spacecraft: SpacecraftData | null = $state(null);
+  const nameOf = (id: WorldId) => (isCraftId(id) ? craftById(id).name : bodyById(id).name);
   let playing = $state(true);
   let daysPerSec = $state(REAL_TIME);
   const SITE_URL = 'https://heidenreich.github.io/orrery';
@@ -63,7 +68,7 @@
   });
 
   // One place that says what is selected, for screen readers.
-  const announcement = $derived(selected ? `${bodyById(selected).name} selected` : 'Overview');
+  const announcement = $derived(selected ? `${nameOf(selected)} selected` : 'Overview');
 
   let picker: HTMLSelectElement;
   // Keyboard users get focus back on the World menu. Not after a tap or click: focusing a
@@ -79,6 +84,7 @@
     // Seed positions so the panel has distances even if the 3D view never starts.
     positions = planetPositions(simMs);
     loadWeather(resolve('/data/weather.json')).then((w) => (weather = w));
+    loadSpacecraft(resolve('/data/spacecraft.json')).then((s) => (spacecraft = s));
     const timer = setInterval(() => {
       now = Date.now();
       // Without the 3D scene nothing else advances the clock, so keep live mode live here.
@@ -118,6 +124,7 @@
 
 <Orrery
   {selected}
+  {spacecraft}
   {playing}
   {daysPerSec}
   {scale}
@@ -154,7 +161,7 @@
   {/if}
 </div>
 
-<InfoPanel {selected} {simMs} {positions} {weather} {now} onclose={closePanel} onselect={(id) => (selected = id)} />
+<InfoPanel {selected} {simMs} {positions} {weather} {spacecraft} {now} onclose={closePanel} onselect={(id) => (selected = id)} />
 
 <div class="controls surface" role="toolbar" aria-label="Time and view controls" data-label-avoid>
   <select
@@ -163,10 +170,17 @@
     aria-label="World"
     bind:this={picker}
     value={selected ?? ''}
-    onchange={(e) => (selected = (e.currentTarget.value || null) as BodyId | null)}
+    onchange={(e) => (selected = (e.currentTarget.value || null) as WorldId | null)}
   >
     <option value="">Overview</option>
-    {#each ALL_BODIES as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
+    <optgroup label="Sun and planets">
+      {#each ALL_BODIES as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
+    </optgroup>
+    {#if spacecraft?.craft.length}
+      <optgroup label="Spacecraft">
+        {#each spacecraft.craft as t (t.id)}<option value={t.id}>{craftById(t.id).name}</option>{/each}
+      </optgroup>
+    {/if}
   </select>
   <button class="ctl play" onclick={() => (playing = !playing)}>
     <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
@@ -296,7 +310,7 @@
     left: 50%;
     transform: translateX(-50%);
     bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    width: min(720px, calc(100% - 32px));
+    width: min(780px, calc(100% - 32px));
     box-sizing: border-box;
     display: flex;
     flex-wrap: wrap;
@@ -335,6 +349,12 @@
 
   .seg .ctl + .ctl {
     border-left: 1px solid var(--panel-line);
+  }
+
+  /* Long spacecraft names would otherwise widen the menu and wrap the toolbar. */
+  select[name='world'] {
+    max-width: 150px;
+    text-overflow: ellipsis;
   }
 
   select.ctl option {

@@ -4,6 +4,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseWeatherData } from '../../src/lib/data/weather-data';
+import { parseSpacecraftData } from '../../src/lib/data/spacecraft-data';
 
 const dir = process.env.BUILD_DIR ?? 'build';
 const base = process.env.BASE_PATH ?? '';
@@ -35,6 +36,15 @@ describe('built site', () => {
     const url = read('index.html').match(/property="og:image" content="([^"]+)"/)?.[1];
     expect(url).toMatch(/^https:\/\/heidenreich\.github\.io\/orrery\/og\.jpg$/);
     expect(existsSync(join(dir, 'og.jpg'))).toBe(true);
+  });
+
+  it('ships a valid spacecraft data file', () => {
+    const parsed = parseSpacecraftData(JSON.parse(read('data/spacecraft.json')));
+    if (!parsed.ok) throw new Error(`data/spacecraft.json is invalid: ${parsed.reason}`);
+    const { craft, missing } = parsed.data;
+    // Not a failure: Horizons can be down, and the offline test build has none.
+    console.log(`spacecraft: ${craft.map((t) => `${t.id} ${t.source} (${t.p.length / 3})`).join(', ') || 'none'}${missing.length ? `; missing ${missing.map((m) => m.id).join(', ')}` : ''}`);
+    expect(read('data/spacecraft.json').length).toBeLessThan(250_000);
   });
 
   it('ships every texture image the scripts ask for, with its licence', () => {
