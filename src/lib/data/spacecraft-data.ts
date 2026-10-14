@@ -203,5 +203,11 @@ export function craftState(t: CraftTrack, ms: number): { pos: Vec3; vel: Vec3 } 
   return { pos: { x, y, z }, vel: { x: vx, y: vy, z: vz } };
 }
 
+/**
+ * Within this distance of Earth (7.5 million km) a spacecraft is on a flyby, which bends its path
+ * within hours, faster than even daily samples follow; distances from Earth are then rough.
+ */
+export const FLYBY_AU = 0.05;
+
 /** AU/day to km/s. */
 export const AU_PER_DAY_KMS = 149_597_870.7 / 86_400;

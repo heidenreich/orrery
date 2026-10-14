@@ -55,8 +55,8 @@
     </dl>
     {#if blackout}
       <p class="effect">
-        At its peak, the {flareClass(s.peak.flux)} flare caused an R{blackout} ({BLACKOUTS[blackout]}) radio blackout on
-        NOAA's scale: high-frequency radio fades on Earth's daylit side.
+        The {flareClass(s.peak.flux)} peak rates R{blackout} ({BLACKOUTS[blackout]}) on NOAA's radio blackout scale: flares
+        this strong can make high-frequency radio fade on Earth's daylit side.
       </p>
     {/if}
     <p class="note">

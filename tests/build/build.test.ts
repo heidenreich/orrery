@@ -44,7 +44,7 @@ describe('built site', () => {
     const { craft, missing } = parsed.data;
     // Not a failure: Horizons can be down, and the offline test build has none.
     console.log(`spacecraft: ${craft.map((t) => `${t.id} ${t.source} (${t.p.length / 3})`).join(', ') || 'none'}${missing.length ? `; missing ${missing.map((m) => m.id).join(', ')}` : ''}`);
-    expect(read('data/spacecraft.json').length).toBeLessThan(250_000);
+    expect(read('data/spacecraft.json').length).toBeLessThan(300_000);
   });
 
   it('ships every texture image the scripts ask for, with its licence', () => {

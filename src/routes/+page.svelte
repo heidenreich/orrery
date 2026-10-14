@@ -22,7 +22,14 @@
   ];
 
   let selected: WorldId | null = $state(null);
-  let spacecraft: SpacecraftData | null = $state(null);
+  // Plain data, replaced whole and never edited in place: $state.raw skips Svelte's deep proxies,
+  // which would slow every read of the trajectory arrays in the scene's per-frame work.
+  let spacecraft: SpacecraftData | null = $state.raw(null);
+  // The phone sheet sits just above the toolbar, so share the toolbar's height with the CSS.
+  let toolbarHeight = $state(0);
+  $effect(() => {
+    if (toolbarHeight) document.documentElement.style.setProperty('--toolbar-h', `${toolbarHeight}px`);
+  });
   const nameOf = (id: WorldId) => (isCraftId(id) ? craftById(id).name : bodyById(id).name);
   let playing = $state(true);
   let daysPerSec = $state(REAL_TIME);
@@ -34,8 +41,8 @@
   let resetToNow = $state(0);
   // Null until the page runs in the browser, so the prerendered HTML never carries the build date.
   let simMs: number | null = $state(null);
-  let positions: PositionsAU | null = $state(null);
-  let weather: WeatherData | null = $state(null);
+  let positions: PositionsAU | null = $state.raw(null);
+  let weather: WeatherData | null = $state.raw(null);
 
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const fmtTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
@@ -163,7 +170,7 @@
 
 <InfoPanel {selected} {simMs} {positions} {weather} {spacecraft} {now} onclose={closePanel} onselect={(id) => (selected = id)} />
 
-<div class="controls surface" role="toolbar" aria-label="Time and view controls" data-label-avoid>
+<div class="controls surface" role="toolbar" aria-label="Time and view controls" data-label-avoid bind:offsetHeight={toolbarHeight}>
   <select
     class="ctl"
     name="world"
@@ -184,12 +191,12 @@
   </select>
   <button class="ctl play" onclick={() => (playing = !playing)}>
     <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
-    {playing ? 'Pause' : 'Play'}
+    <span class="play-text">{playing ? 'Pause' : 'Play'}</span>
   </button>
   <select class="ctl" name="speed" aria-label="Playback speed" bind:value={daysPerSec} onchange={() => (playing = true)}>
     {#each SPEEDS as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
   </select>
-  <button class="ctl" onclick={goLive} disabled={status === 'Live'}>Now</button>
+  <button class="ctl now" onclick={goLive} disabled={status === 'Live'}>Now</button>
   <span class="grow"></span>
   <span class="ctl-label" id="scale-label">Distances</span>
   <div class="seg" role="group" aria-labelledby="scale-label">
@@ -365,6 +372,56 @@
   @media (max-width: 640px) {
     h1 {
       font-size: 20px;
+    }
+
+    /* Two rows: the two menus side by side, then play, Now and the distance switch. With 44 px
+       controls the desktop order wraps to three rows and takes space from the 3D view. */
+    select[name='world'],
+    select[name='speed'] {
+      flex: 1 1 40%;
+      max-width: none;
+      min-width: 0;
+    }
+
+    select[name='speed'] {
+      order: 1;
+    }
+
+    .play {
+      order: 2;
+      min-width: 44px;
+    }
+
+    /* The icon alone on phones; the button keeps its name for screen readers. */
+    .play-text {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .now {
+      order: 3;
+    }
+
+    .grow {
+      order: 4;
+    }
+
+    /* The group keeps "Distances" as its accessible name; on screen the buttons say enough. */
+    .ctl-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .seg {
+      order: 5;
     }
   }
 </style>

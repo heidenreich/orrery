@@ -109,6 +109,7 @@ export function kpWords(kp: number): string {
 
 /** Where auroras might be seen, roughly, at this level (they also need a dark, clear sky). */
 export function auroraWords(kp: number): string {
+  if (kp >= 8) return `${kp >= 9 ? 'An extreme' : 'A severe'} storm: auroras may be seen far from the poles, possibly as far south as the southern United States and southern Europe.`;
   if (kp >= 7) return 'A strong storm: auroras may be seen far from the poles, possibly as far as the central United States and central Europe.';
   if (kp >= 5) return 'Auroras may reach Scotland, southern Scandinavia and the northern United States.';
   if (kp >= 3) return 'Auroras likely at high latitudes, such as Iceland, northern Scandinavia, Alaska and northern Canada.';

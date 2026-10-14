@@ -13,7 +13,7 @@
   import { FACTS, MOONS_CHECKED, gravityText, massText } from '$lib/orrery/facts';
   import { northSeason } from '$lib/orrery/seasons';
   import { craftById, isCraftId, type WorldId } from '$lib/orrery/craft';
-  import { AU_PER_DAY_KMS, craftState, trackEnd, type SpacecraftData } from '$lib/data/spacecraft-data';
+  import { AU_PER_DAY_KMS, craftState, FLYBY_AU, trackEnd, type SpacecraftData } from '$lib/data/spacecraft-data';
 
   interface Props {
     selected: WorldId | null;
@@ -50,10 +50,11 @@
     if (!craftNow || !positions) return [];
     const p = craftNow.pos, v = craftNow.vel;
     const d = distance(p, positions.earth);
+    const rough = d < FLYBY_AU;
     return [
       ['From the Sun', `${fmtAU(length(p))} · ${km(length(p))}`],
-      ['From Earth', `${fmtAU(d)} · ${km(d)}`],
-      ['Radio signal takes', lightTime(d)],
+      ['From Earth', rough ? `about ${km(d)}, approximate during this Earth flyby` : `${fmtAU(d)} · ${km(d)}`],
+      ['Radio signal takes', rough ? `about ${lightTime(d)}` : lightTime(d)],
       ['Speed', `${(length(v) * AU_PER_DAY_KMS).toFixed(1)} km/s relative to the Sun`]
     ];
   });
@@ -120,7 +121,10 @@
       if (!panel) return;
       panel.scrollTop = 0;
       checkMore();
-      if (selected) heading?.focus({ preventScroll: true });
+      // Not when the choice came from a menu: arrow keys in a closed <select> change it at once
+      // in some browsers, and taking focus would stop the user stepping through the list. The
+      // page's live region announces the selection either way.
+      if (selected && !(document.activeElement instanceof HTMLSelectElement)) heading?.focus({ preventScroll: true });
     });
   });
   $effect(() => {
@@ -163,6 +167,8 @@
       <p class="empty" data-testid="craft-out-of-range">
         Its trajectory here runs from {fmtDate.format(new Date(track.start))} to {fmtDate.format(new Date(trackEnd(track)))}.
         Set the clock inside those dates to see where it was.
+        {#if typeof craft.from !== 'string'}This site keeps only about {Math.round((craft.from.daysBack + craft.daysAhead) / 30)} months
+          of its path around today, sampled finely enough to follow it.{/if}
       </p>
     {/if}
     <dl class="stats">
@@ -622,7 +628,8 @@
 
     .panel {
       top: auto;
-      bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+      /* Just above the toolbar, whose height the page measures (it wraps to two rows here). */
+      bottom: calc(var(--toolbar-h, 116px) + 24px + env(safe-area-inset-bottom, 0px));
       left: 16px;
       right: 16px;
       width: auto;

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { planetPosition } from '../../src/lib/orrery/ephemeris';
 
 const DATA = '**/data/weather.json';
 const sampleFile = readFileSync(new URL('./weather-sample.json', import.meta.url), 'utf8');
@@ -148,9 +149,9 @@ test('shows live solar wind on the Sun panel', async ({ page }) => {
   await expect(card).toContainText('538 km/s');
   await expect(card).toContainText('Last 24 h: 512–538 km/s');
   await expect(card).toContainText('5.1 protons/cm³');
-  await expect(card).toContainText('by SOLAR1');
+  await expect(card).toContainText("by NOAA's SOLAR1 spacecraft");
   await expect(card.getByRole('img')).toBeVisible();
-  await expect(card).toContainText(/Measured\s*\d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2} UTC \(5 min ago\) by SOLAR1/);
+  await expect(card).toContainText(/Measured\s*\d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2} UTC \(5 min ago\) by NOAA's SOLAR1 spacecraft/);
   await expect(card.getByRole('status')).toHaveCount(0);
 });
 
@@ -304,13 +305,13 @@ test('a new selection starts at the top of the panel with focus on its heading',
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const world = page.getByRole('combobox', { name: 'World' });
-  await world.selectOption({ label: 'Mars' });
+  await select(page, 'Mars');
   const aside = panel(page);
   await expect(aside.getByRole('heading', { name: 'Mars' })).toBeFocused();
   await aside.evaluate((el) => (el.scrollTop = el.scrollHeight));
   expect(await aside.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
 
-  await world.selectOption({ label: 'Sun' });
+  await select(page, 'Sun');
   await expect(aside.getByRole('heading', { name: 'Sun' })).toBeFocused();
   expect(await aside.evaluate((el) => el.scrollTop)).toBe(0);
 
@@ -462,7 +463,7 @@ test('planet panels show physical facts, moons, rings and missions', async ({ pa
   await page.goto('/');
   await select(page, 'Saturn');
   const p = panel(page);
-  await expect(p).toContainText(/Moons\s*290\+/);
+  await expect(p).toContainText(/Moons\s*285\+/);
   await expect(p).toContainText(/Gravity\s*9\.0 m\/s² · 0\.92× Earth’s/);
   await expect(p).toContainText(/Density\s*0\.69 g\/cm³, less than water/);
   const facts = page.getByTestId('facts');
@@ -509,7 +510,7 @@ test('the Sun shows solar flares: class now, 24-hour peak and radio blackout lev
   const card = page.getByTestId('flares');
   await expect(card).toContainText(/C1\.\d\s*C-class/);
   await expect(card).toContainText(/24 h peak\s*M2\.\d at/);
-  await expect(card).toContainText('R1 (minor) radio blackout');
+  await expect(card).toContainText("rates R1 (minor) on NOAA's radio blackout scale");
   await expect(card).toContainText('GOES-19');
   await expect(card.locator('text')).toHaveText(['C', 'M', 'X']);
   expect(errors).toEqual([]);
@@ -555,6 +556,7 @@ test('a spacecraft outside its known trajectory says when it can be seen', async
   await page.getByRole('combobox', { name: 'Playback speed' }).selectOption({ label: '−10 days / s' });
   await expect(page.getByTestId('craft-out-of-range')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('craft-out-of-range')).toContainText('Set the clock inside those dates');
+  await expect(page.getByTestId('craft-out-of-range')).toContainText('about 6 months of its path around today');
 });
 
 test('without spacecraft data the orrery still works and the menu lists no spacecraft', async ({ page }) => {
@@ -565,4 +567,71 @@ test('without spacecraft data the orrery still works and the menu lists no space
   await expect(labels(page).getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
   await expect(page.locator('optgroup[label="Spacecraft"]')).toHaveCount(0);
   expect(thrown).toEqual([]);
+});
+
+test('the arrow keys step through the World menu without focus jumping to the panel', async ({ page }) => {
+  await page.goto('/');
+  const world = page.getByRole('combobox', { name: 'World' });
+  await world.focus();
+  // Picking from the menu (here, by keyboard) keeps focus on the menu but still opens the world.
+  await world.selectOption({ label: 'Sun' });
+  await expect(panel(page).getByRole('heading', { name: 'Sun' })).toBeVisible();
+  await expect(world).toBeFocused();
+  await world.press('ArrowDown');
+  await expect(world).toBeFocused();
+  await expect(page.locator('p[aria-live="polite"]')).toContainText('selected');
+});
+
+test('a spacecraft on an Earth flyby shows its distance from Earth as approximate', async ({ page }) => {
+  // Constructed: Europa Clipper parked 0.01 AU (1.5 million km) from where Earth is today.
+  const DAY = 86_400_000;
+  const e = planetPosition('earth', Date.now());
+  const at = [e.x + 0.01, e.y, e.z];
+  const d = JSON.parse(craftSample());
+  d.craft.push({ id: 'europa-clipper', source: 'live', fetchedAt: d.generatedAt, start: new Date(Date.now() - DAY).toISOString(), stepMs: 2 * DAY, p: [...at, ...at], v: [0, 0, 0, 0, 0, 0] });
+  await page.route(CRAFT_DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
+  await page.goto('/');
+  await page.getByRole('combobox', { name: 'World' }).selectOption({ label: 'Europa Clipper' });
+  await expect(panel(page)).toContainText(/From Earth\s*about 1\.\d million km, approximate during this Earth flyby/);
+  await expect(panel(page)).toContainText(/Radio signal takes\s*about \d\.\d minutes/);
+});
+
+test('on a phone the controls are comfortable touch targets and the sheet sits clear of the toolbar', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  for (const name of ['Pause', 'Now', 'Compressed', 'To scale']) {
+    const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(box!.height, name).toBeGreaterThanOrEqual(44);
+  }
+  const toolbar = await page.getByRole('toolbar').boundingBox();
+  const sheet = await panel(page).boundingBox();
+  expect(sheet!.y + sheet!.height).toBeLessThanOrEqual(toolbar!.y - 4);
+});
+
+test('clicking a spacecraft marker in the 3D view selects it', async ({ page }) => {
+  // Constructed: one spacecraft parked at 3.5 AU in the direction farthest from every planet
+  // today, so nothing else's label competes with its own. The overview camera holds still.
+  const DAY = 86_400_000;
+  const ids = ['mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'] as const;
+  const lons = ids.map((id) => { const p = planetPosition(id, Date.now()); return Math.atan2(p.y, p.x); });
+  const gap = (a: number) => Math.min(...lons.map((l) => Math.abs(((a - l + 3 * Math.PI) % (2 * Math.PI)) - Math.PI)));
+  let best = 0;
+  for (let a = 0; a < 2 * Math.PI; a += 0.05) if (gap(a) > gap(best)) best = a;
+  const at = [3.5 * Math.cos(best), 3.5 * Math.sin(best), 0];
+  const fetchedAt = new Date().toISOString();
+  const data = { version: 1, generatedAt: fetchedAt, missing: [], craft: [
+    { id: 'juice', source: 'live', fetchedAt, start: new Date(Date.now() - DAY).toISOString(), stepMs: 2 * DAY, p: [...at, ...at], v: [0, 0, 0, 0, 0, 0] }
+  ] };
+  await page.route(CRAFT_DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) }));
+  await page.goto('/');
+  const label = labels(page).getByRole('button', { name: 'JUICE' });
+  await expect(label).toBeVisible();
+  // The camera eases into the overview after loading, slowly on a busy machine, so measure and
+  // click again until the click lands where the marker now is.
+  await expect(async () => {
+    const box = (await label.boundingBox())!;
+    // The label sits 8 px above the marker; aim just below it, a little off the marker's centre.
+    await page.mouse.click(box.x + box.width / 2 + 3, box.y + box.height + 9);
+    await expect(panel(page).getByRole('heading', { name: 'JUICE' })).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
 });

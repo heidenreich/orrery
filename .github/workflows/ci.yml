@@ -19,8 +19,10 @@ permissions:
 
 # One run per branch at a time. A newer run replaces one that is still waiting to start. Once
 # started, runs on main are never cancelled, so a deploy is never cut off; pull request runs are.
+# Data refreshes (schedule, manual) queue separately: in one queue, an hourly run could replace a
+# waiting push run, and that commit would deploy without its tests ever running.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'data' || 'code' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -126,6 +128,21 @@ jobs:
       group: pages
       cancel-in-progress: false
     steps:
+      # A data refresh runs alongside push runs, so it may finish after a newer commit deployed.
+      # Then that commit's own run has deployed (or will), and this one must not put old code back.
+      - name: Check this is still the newest commit
+        id: head
+        if: github.event_name != 'push'
+        run: |
+          head=$(git ls-remote "https://github.com/${{ github.repository }}" refs/heads/main | cut -f1 || true)
+          if [ -n "$head" ] && [ "$head" != "$GITHUB_SHA" ]; then
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::main has moved on to $head; skipping this data refresh, that commit's run deploys."
+          else
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy to GitHub Pages
+        if: steps.head.outputs.current != 'false'
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -48,7 +48,9 @@ The npm 10.9 bundled with Node 22 crashes on this dependency tree, so
 The hourly run (at :23) only refreshes the data: it skips the test job, so a
 flaky test or a failed browser install cannot stop the update. To refresh by
 hand, run the CI workflow from the Actions tab. Each build's summary shows what
-data it fetched.
+data it fetched. Data runs queue apart from push runs, so they never displace a
+commit waiting for its tests, and a data run skips its deploy if `main` has
+moved on by then (that commit's own run deploys).
 
 Pages must be set to deploy from GitHub Actions (Settings → Pages → Source).
 GitHub pauses scheduled workflows in a public repository after 60 days without

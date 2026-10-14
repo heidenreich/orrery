@@ -296,12 +296,7 @@ export class OrreryScene {
   select(id: WorldId | null) {
     this.needsRender = true;
     this.selected = id;
-    for (const c of this.craft) {
-      const m = c.trail.material as THREE.LineBasicMaterial;
-      const on = c.track.id === id;
-      m.color.setHex(on ? ORBIT_SELECTED : CRAFT_TRAIL);
-      m.opacity = on ? 0.9 : 0.55;
-    }
+    this.highlightTrails();
     // Highlight only the selected planet's orbit.
     for (const n of this.nodes) {
       const m = n.line.material as THREE.LineBasicMaterial;
@@ -337,7 +332,9 @@ export class OrreryScene {
       const marker = new THREE.Sprite(
         new THREE.SpriteMaterial({ map: this.craftTexture, color: CRAFT_COLOR, sizeAttenuation: false, depthWrite: false, transparent: true })
       );
-      marker.scale.set(0.022, 0.022, 1);
+      // Larger than it looks: the diamond is drawn small in the middle of a mostly clear texture,
+      // so the sprite, which is what a click or tap hits, is easier to hit than the diamond.
+      marker.scale.set(0.045, 0.045, 1);
       marker.userData.id = track.id;
       marker.visible = false;
       const trail = new THREE.Line(
@@ -351,8 +348,18 @@ export class OrreryScene {
       return { track, marker, trail, posAU: null };
     });
     this.lastOrbitMs = null; // redraw trails with the orbits on the next frame
-    this.select(this.selected);
+    // Only recolour: the file can arrive after the user has zoomed, and select() would reset that.
+    this.highlightTrails();
     this.needsRender = true;
+  }
+
+  private highlightTrails() {
+    for (const c of this.craft) {
+      const m = c.trail.material as THREE.LineBasicMaterial;
+      const on = c.track.id === this.selected;
+      m.color.setHex(on ? ORBIT_SELECTED : CRAFT_TRAIL);
+      m.opacity = on ? 0.9 : 0.55;
+    }
   }
 
   /** Where a spacecraft is at the clock's time, AU, or null if outside its trajectory. */
@@ -731,12 +738,13 @@ function imageRingGeometry(planetSize: number) {
 
 /** A small glowing diamond for spacecraft markers. */
 function markerTexture() {
-  const size = 64;
+  const size = 128;
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d')!;
   const mid = size / 2;
-  const halo = g.createRadialGradient(mid, mid, 0, mid, mid, mid);
+  // Drawn at half the texture's size (see the marker's scale in setSpacecraft).
+  const halo = g.createRadialGradient(mid, mid, 0, mid, mid, mid / 2);
   halo.addColorStop(0, 'rgba(255,255,255,0.55)');
   halo.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = halo;

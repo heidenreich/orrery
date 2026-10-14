@@ -67,7 +67,7 @@ export const FACTS: Record<BodyId, BodyFacts> = {
   saturn: {
     massEarths: 95.2, gravity: 9.0, escapeKms: 35.5, density: 0.69,
     atmosphere: 'Hydrogen 96%, helium 3%',
-    moons: { count: '290+', notable: 'Titan, with a thick atmosphere and methane lakes, and Enceladus, whose geysers spray ice into space' },
+    moons: { count: '285+', notable: 'Titan, with a thick atmosphere and methane lakes, and Enceladus, whose geysers spray ice into space' },
     rings: 'Bright ice rings, up to about 280,000 km across but mostly only tens of metres thick',
     visited: 'Pioneer 11, Voyager, Cassini–Huygens (landed on Titan)'
   },

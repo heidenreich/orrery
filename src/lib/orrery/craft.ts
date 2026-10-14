@@ -58,7 +58,8 @@ export const CRAFT: Craft[] = [
   },
   {
     id: 'europa-clipper', name: 'Europa Clipper', horizonsId: '-159', launched: '2024-10-14', agency: 'NASA',
-    from: '2024-10-20', daysAhead: 365, step: '5 d',
+    // Daily, as its Earth flyby (December 2026) turns it within hours.
+    from: '2024-10-20', daysAhead: 365, step: '1 d',
     about: [
       'On its way to Jupiter, due in 2030, to study whether Europa’s ocean under the ice could support life.',
       'Uses gravity assists from Mars (2025) and Earth (2026) to get there.'
@@ -66,7 +67,8 @@ export const CRAFT: Craft[] = [
   },
   {
     id: 'juice', name: 'JUICE', horizonsId: '-28', launched: '2023-04-14', agency: 'ESA',
-    from: '2023-04-20', daysAhead: 365, step: '7 d',
+    // Daily for its flybys; two years back keeps the file small.
+    from: { daysBack: 730 }, daysAhead: 365, step: '1 d',
     about: [
       'ESA’s Jupiter Icy Moons Explorer, due at Jupiter in 2031 to study Ganymede, Callisto and Europa.',
       'Made the first ever lunar-Earth double flyby in 2024 on its way.'

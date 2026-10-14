@@ -77,6 +77,8 @@ describe('Kp in words', () => {
   it('says where auroras may reach', () => {
     expect(auroraWords(2)).toContain('polar regions');
     expect(auroraWords(5.33)).toContain('Scotland');
-    expect(auroraWords(8)).toContain('far from the poles');
+    expect(auroraWords(7)).toMatch(/^A strong storm/);
+    expect(auroraWords(8)).toMatch(/^A severe storm/);
+    expect(auroraWords(9)).toMatch(/^An extreme storm/);
   });
 });
