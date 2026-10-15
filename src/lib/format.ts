@@ -25,7 +25,8 @@ const KM_PER_AU = 149_597_870.7;
 /** "149.6 million km", "1.31 billion km". */
 export function km(au: number): string {
   const millions = (au * KM_PER_AU) / 1e6;
-  if (millions >= 1000) return `${(millions / 1000).toLocaleString('en-US', { maximumFractionDigits: 2 })} billion km`;
+  // Compare after rounding to the shown precision, so 999.96 million reads "1 billion", not "1,000 million".
+  if (Math.round(millions * 10) / 10 >= 1000) return `${(millions / 1000).toLocaleString('en-US', { maximumFractionDigits: 2 })} billion km`;
   return `${millions.toLocaleString('en-US', { maximumFractionDigits: 1 })} million km`;
 }
 

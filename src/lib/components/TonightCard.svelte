@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { WorldId } from '$lib/orrery/craft';
-  import { brightness, compass, height, moonAt, roundPlace, tonightSky, whenAndWhere, type Place } from '$lib/orrery/tonight';
+  import { brightness, compass, height, isPlace, moonAt, parseCoordinate, POLAR_HOURS, roundPlace, tonightSky, whenAndWhere, type Place } from '$lib/orrery/tonight';
 
   let { now, onselect }: { now: number; onselect: (id: WorldId) => void } = $props();
 
@@ -15,7 +15,7 @@
   onMount(() => {
     try {
       const p = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-      if (p && Number.isFinite(p.latitude) && Number.isFinite(p.longitude)) place = p;
+      if (isPlace(p)) place = p;
     } catch {
       // Storage blocked or bad data: ask again.
     }
@@ -53,21 +53,31 @@
 
   function enter(e: SubmitEvent) {
     e.preventDefault();
-    const la = Number(lat), lo = Number(lon);
-    if (lat.trim() === '' || lon.trim() === '' || !(Math.abs(la) <= 90) || !(Math.abs(lo) <= 180)) {
-      status = 'Latitude runs from −90 to 90 and longitude from −180 to 180 (east is positive).';
+    const la = parseCoordinate(lat, 'latitude'), lo = parseCoordinate(lon, 'longitude');
+    if (la === null || lo === null) {
+      status = 'Latitude runs from 90 S to 90 N and longitude from 180 W to 180 E: for example 51.5 and −0.1, or 33.9 S and 151.2 E.';
       return;
     }
     status = '';
     save({ latitude: la, longitude: lo });
   }
 
-  // About 10 ms to work out, so every 10 minutes is plenty.
+  // About 10 ms to work out, so every 10 minutes is plenty, but also as soon as the dark window it
+  // describes has ended (at dawn), so it never says "now" about a night that is over.
   const slot = $derived(Math.floor(now / 600_000) * 600_000);
-  const sky = $derived(place ? tonightSky(slot, place) : null);
+  let sky = $state.raw<ReturnType<typeof tonightSky> | null>(null);
+  let key = '';
+  $effect(() => {
+    const p = place, s = slot, ended = !!sky?.dark && now > sky.dark.to;
+    const k = p ? `${p.latitude},${p.longitude},${s}` : '';
+    if (k === key && !ended) return;
+    key = k;
+    sky = p ? tonightSky(now, p) : null;
+  });
 
   const fmtTime = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
   const cap = (w: string) => w[0].toUpperCase() + w.slice(1);
+  const list = (names: string[]) => new Intl.ListFormat('en-GB', { type: 'conjunction' }).format(names);
   // Times are in this device's time zone; say so when the place is far from it (an entered place).
   const offsetH = -new Date().getTimezoneOffset() / 60;
   const farAway = $derived(place ? Math.abs((((place.longitude / 15 - offsetH + 12) % 24) + 24) % 24 - 12) > 2.5 : false);
@@ -86,12 +96,14 @@
     <details>
       <summary>Or enter a place</summary>
       <form onsubmit={enter}>
-        <label>Latitude <input name="latitude" inputmode="decimal" placeholder="51.5" bind:value={lat} /></label>
-        <label>Longitude <input name="longitude" inputmode="decimal" placeholder="−0.1" bind:value={lon} /></label>
+        <!-- Plain text: the iPhone decimal keypad has no minus sign. -->
+        <label>Latitude <input name="latitude" autocomplete="off" placeholder="51.5 or 33.9 S" bind:value={lat} /></label>
+        <label>Longitude <input name="longitude" autocomplete="off" placeholder="−0.1 or 151.2 E" bind:value={lon} /></label>
         <button type="submit">Show</button>
       </form>
     </details>
-    {#if status}<p class="status" role="status">{status}</p>{/if}
+    <!-- Always in the page, so screen readers announce the message when it is filled in. -->
+    <p class="status" role="status">{status}</p>
     <p class="note">Your location stays in this browser, rounded to about 10 km.</p>
   {:else if sky}
     {#if !sky.dark}
@@ -102,7 +114,7 @@
       </p>
     {:else}
       <p class="lead">
-        {#if sky.polar === 'polar-night'}Polar night: the Sun doesn’t rise here today.
+        {#if sky.polar === 'polar-night'}Polar night: the Sun doesn’t rise here, so this covers the next {POLAR_HOURS} hours.
         {:else if sky.startsNow}Bright planets show now, until {t(sky.dark.to)}; fainter ones need the darker hours.
         {:else}Bright planets show from {t(sky.dark.from)}, in twilight, until {t(sky.dark.to)}; fainter ones need the darker hours.{/if}
         Times are in your time zone{zone ? ` (${zone})` : ''}{farAway ? ', not local time there' : ''}.
@@ -127,13 +139,13 @@
         </p>
       {/if}
       {#if !sky.visible.some((o) => o.id === 'moon')}<p class="note">The Moon ({sky.moon.phase.toLowerCase()}) isn’t up after dark tonight.</p>{/if}
-      {#if sky.washedOut.length}<p class="note">Up only while the sky is still too bright: {sky.washedOut.join(', ')}.</p>{/if}
-      {#if sky.hidden.length}<p class="note">Not visible tonight: {sky.hidden.join(', ')}, too close to the Sun or below the horizon.</p>{/if}
+      {#if sky.washedOut.length}<p class="note">{list(sky.washedOut)} {sky.washedOut.length > 1 ? 'are' : 'is'} up only while the sky is still too bright to see {sky.washedOut.length > 1 ? 'them' : 'it'}.</p>{/if}
+      {#if sky.hidden.length}<p class="note">Not visible tonight, too close to the Sun or below the horizon: {list(sky.hidden)}.</p>{/if}
+      <p class="note">
+        Visible means at least 10° above the horizon, clear of most trees and buildings, with the sky dark
+        enough for that object.
+      </p>
     {/if}
-    <p class="note">
-      Visible means at least 10° above the horizon, clear of most trees and buildings, with the sky dark
-      enough for that object.
-    </p>
     <button type="button" class="link change" onclick={() => save(null)}>Change place</button>
   {/if}
 </section>
@@ -169,6 +181,15 @@
     color: var(--ink);
   }
 
+  /* Empty until there is a message; kept in the page, out of sight, so it is announced when filled. */
+  .status:empty {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
   ul {
     list-style: none;
     margin: 0;
@@ -179,7 +200,7 @@
 
   li {
     display: grid;
-    grid-template-columns: 76px 1fr;
+    grid-template-columns: 6.5em 1fr;
     align-items: start;
     gap: 8px;
     font-size: 13px;

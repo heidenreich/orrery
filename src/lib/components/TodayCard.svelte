@@ -13,12 +13,15 @@
   const lines = $derived(todayLines(minute * 60_000, weather, spacecraft));
   // The reader's own date, not UTC's, which is already tomorrow in Asia and the Pacific.
   const fmtDay = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-  const fetched = $derived(readingsFetchedAt(weather));
+  const fetched = $derived(readingsFetchedAt(weather, minute * 60_000));
 </script>
 
 <section class="today" data-testid="today" aria-labelledby="today-heading">
   <p class="eyebrow" id="today-heading">Solar system today · {fmtDay.format(new Date(minute * 60_000))}</p>
-  {#if lines.length === 0}
+  {#if !weather}
+    <!-- The page always ends up with weather data (the bundled report at worst), so null is loading. -->
+    <p class="note">Loading the latest readings…</p>
+  {:else if lines.length === 0}
     <p class="note">The latest readings from the Sun, Earth and Mars aren’t available right now.</p>
   {:else}
   <ul>
@@ -31,7 +34,7 @@
   </ul>
   {/if}
   {#if fetched}
-    <p class="note" data-testid="today-age">Sun and Earth readings from NOAA, updated hourly; the oldest shown was fetched {ago(fetched, now)}.</p>
+    <p class="note" data-testid="today-age">Sun and Earth readings from NOAA, updated hourly; {fetched.feeds > 1 ? 'the oldest of these was' : 'this was'} fetched {ago(fetched.at, now)}.</p>
   {/if}
 </section>
 
@@ -54,7 +57,7 @@
 
   li {
     display: grid;
-    grid-template-columns: 76px 1fr;
+    grid-template-columns: 6.5em 1fr;
     align-items: start;
     gap: 8px;
     font-size: 13px;
@@ -72,6 +75,7 @@
     text-decoration: underline;
     text-decoration-color: var(--panel-line);
     text-underline-offset: 3px;
+    min-height: 24px;
   }
 
   button:hover {

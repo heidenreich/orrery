@@ -149,9 +149,9 @@ test('shows live solar wind on the Sun panel', async ({ page }) => {
   await expect(card).toContainText('538 km/s');
   await expect(card).toContainText('Last 24 h: 512–538 km/s');
   await expect(card).toContainText('5.1 protons/cm³');
-  await expect(card).toContainText("by NOAA's SOLAR1 spacecraft");
+  await expect(card).toContainText("by NOAA's monitoring spacecraft (SOLAR1)");
   await expect(card.getByRole('img')).toBeVisible();
-  await expect(card).toContainText(/Measured\s*\d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2} UTC \(5 min ago\) by NOAA's SOLAR1 spacecraft/);
+  await expect(card).toContainText(/Measured\s*\d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2} UTC \(5 min ago\) by NOAA's monitoring spacecraft \(SOLAR1\)/);
   await expect(card.getByRole('status')).toHaveCount(0);
 });
 
@@ -249,7 +249,7 @@ test('without WebGL it explains why and keeps the panel working', async ({ page 
   });
   await page.goto('/');
 
-  await expect(page.getByRole('status')).toContainText('3D view unavailable');
+  await expect(page.getByRole('status').filter({ hasText: '3D view unavailable' })).toBeVisible();
   await expect(panel(page)).toContainText('From Earth');
   await expect(page.getByTestId('clock')).toContainText('UTC');
 
@@ -680,7 +680,7 @@ test('the overview sums up the solar system today and lists what is coming up', 
   await expect(today).toContainText(/Earth\s*Kp 3\.3, unsettled: auroras at high latitudes/);
   await expect(page.getByTestId('tonight')).toContainText(/The Moon now: (new moon|waxing|first|full|waning|last)[^,]*, \d+% lit/);
   await expect(page.getByTestId('today-age')).toContainText('updated hourly');
-  await expect(today).toContainText(/Mars\s*−71 °C to −5 °C at Gale Crater/);
+  await expect(today).toContainText(/Mars\s*Air −71 °C to −5 °C at Gale Crater/);
   await expect(today).toContainText(/Voyager 1\s*[\d.]+ billion km from Earth; a radio signal takes \d+ h \d+ min one way/);
   await today.getByRole('button', { name: 'Mars' }).click();
   await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
@@ -715,8 +715,8 @@ test('tonight’s sky uses the browser location, remembers it and lists what is 
   await expect(tonight.getByText('Tonight’s sky · 51.5° N, 0.1° W')).toBeVisible();
   await tonight.getByRole('button', { name: 'Change place' }).click();
   await tonight.getByText('Or enter a place').click();
-  await tonight.getByLabel('Latitude').fill('-33.9');
-  await tonight.getByLabel('Longitude').fill('151.2');
+  await tonight.getByLabel('Latitude').fill('33.9 S');
+  await tonight.getByLabel('Longitude').fill('151,2');
   await tonight.getByRole('button', { name: 'Show' }).click();
   await expect(tonight.getByText('Tonight’s sky · 33.9° S, 151.2° E')).toBeVisible();
   expect(errors).toEqual([]);
@@ -731,5 +731,5 @@ test('tonight’s sky explains a declined location and rejects bad coordinates',
   await tonight.getByLabel('Latitude').fill('95');
   await tonight.getByLabel('Longitude').fill('0');
   await tonight.getByRole('button', { name: 'Show' }).click();
-  await expect(tonight.getByRole('status')).toContainText('Latitude runs from −90 to 90');
+  await expect(tonight.getByRole('status')).toContainText('Latitude runs from 90 S to 90 N');
 });

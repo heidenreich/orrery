@@ -38,7 +38,7 @@ export const FACTS: Record<BodyId, BodyFacts> = {
     massEarths: 0.0553, gravity: 3.7, escapeKms: 4.3, density: 5.43,
     atmosphere: 'Almost none: a thin exosphere of oxygen, sodium, hydrogen and helium',
     moons: { count: '0' },
-    visited: 'Mariner 10 (flybys), MESSENGER (orbited 2011–2015), BepiColombo (flybys so far, due to go into orbit from late 2026)'
+    visited: 'Mariner 10 (flybys), MESSENGER (orbited 2011–2015), BepiColombo (six Mercury flybys from 2021 to 2025, then into orbit from late 2026)'
   },
   venus: {
     massEarths: 0.815, gravity: 8.9, escapeKms: 10.4, density: 5.24,

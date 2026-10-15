@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brightness, compass, height, roundPlace, sunLimit, tonightSky, whenAndWhere } from './tonight';
+import { brightness, compass, height, isPlace, parseCoordinate, roundPlace, sunLimit, tonightSky, whenAndWhere } from './tonight';
 
 const LONDON = { latitude: 51.5, longitude: -0.1 };
 
@@ -125,5 +125,42 @@ describe('words', () => {
 
   it('rounds a place to 0.1°', () => {
     expect(roundPlace({ latitude: 51.5074, longitude: -0.1278 })).toEqual({ latitude: 51.5, longitude: -0.1 });
+  });
+});
+
+describe('parseCoordinate', () => {
+  it('reads signs, typographic minus, decimal commas and compass letters', () => {
+    expect(parseCoordinate('51.5', 'latitude')).toBe(51.5);
+    expect(parseCoordinate('−0.1', 'longitude')).toBe(-0.1);
+    expect(parseCoordinate('51,5', 'latitude')).toBe(51.5);
+    expect(parseCoordinate('33.9 S', 'latitude')).toBe(-33.9);
+    expect(parseCoordinate('151.2E', 'longitude')).toBe(151.2);
+    expect(parseCoordinate('0.1 w', 'longitude')).toBe(-0.1);
+  });
+
+  it('rejects the wrong letter, both a sign and a letter, and out-of-range values', () => {
+    expect(parseCoordinate('51.5 E', 'latitude')).toBeNull();
+    expect(parseCoordinate('-33.9 S', 'latitude')).toBeNull();
+    expect(parseCoordinate('95', 'latitude')).toBeNull();
+    expect(parseCoordinate('', 'longitude')).toBeNull();
+    expect(isPlace({ latitude: 500, longitude: 0 })).toBe(false);
+  });
+});
+
+describe('edge cases from review', () => {
+  it('waits for a dark enough sky before saying "now"', () => {
+    // 17:50 UTC in London: just past civil dusk, too bright yet for Saturn.
+    const t = tonightSky(Date.parse('2026-10-15T17:50Z'), LONDON);
+    const saturn = t.visible.find((o) => o.name === 'Saturn')!;
+    expect(whenAndWhere(saturn, hhmm, t)).toMatch(/^Visible from 18:\d0 /);
+  });
+
+  it('says "now until dawn" in the last minutes of the night, not "briefly"', () => {
+    const t = tonightSky(Date.parse('2026-10-16T05:30Z'), LONDON);
+    expect(whenAndWhere(t.visible.find((o) => o.name === 'Jupiter')!, hhmm, t)).toMatch(/^Visible now until dawn/);
+  });
+
+  it('stays polar night all day at 73° N in midwinter', () => {
+    for (const h of ['00', '06', '12', '18']) expect(tonightSky(Date.parse(`2026-12-20T${h}:00Z`), { latitude: 73, longitude: 20 }).polar).toBe('polar-night');
   });
 });

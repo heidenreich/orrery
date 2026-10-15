@@ -23,13 +23,13 @@ describe('todayLines', () => {
 
   it('dates the Mars report', () => {
     const mars = todayLines(kpTime, base, null).find((l) => l.label === 'Mars')!;
-    expect(mars.text).toMatch(/for sol \d+ \(\d+ \w{3} on Earth\)$/);
+    expect(mars.text).toMatch(/for sol \d+ \(\d+ \w{3} \d{4} on Earth\)$/);
   });
 });
 
 describe('readingsFetchedAt', () => {
   it('gives the oldest reading shown, so a stale feed is not hidden by a fresh one', () => {
     const w: WeatherData = { ...base, kp: { ...base.kp, fetchedAt: '2026-01-01T00:00:00Z' } };
-    expect(readingsFetchedAt(w)).toBe('2026-01-01T00:00:00Z');
+    expect(readingsFetchedAt(w, kpTime + 3_600_000)?.at).toBe('2026-01-01T00:00:00Z');
   });
 });

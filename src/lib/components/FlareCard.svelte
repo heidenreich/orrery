@@ -60,7 +60,7 @@
       </p>
     {/if}
     <p class="note">
-      GOES satellites measure the Sun's X-rays; flares are named by their peak: A, B and C are small, M medium, X major.
+      GOES satellites measure the Sun's X-rays; flares are named by their peak: A, B and C are small, M moderate, X major.
       {#if data.source === 'previous'}NOAA was unreachable at the last update, so this is the previous reading.{/if}
     </p>
     {#if stale}

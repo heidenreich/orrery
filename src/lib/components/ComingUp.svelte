@@ -29,7 +29,9 @@
   });
   const events = $derived(upcomingEvents(day * DAY, 120, spacecraft));
   let all = $state(false);
-  const shown = $derived(all ? events : events.slice(0, 3));
+  // From the clock's moment, not the start of its day: nothing that has already happened.
+  const ahead = $derived(events.filter((e) => e.ms >= simMs || (e.approximate && e.ms >= day * DAY)));
+  const shown = $derived(all ? ahead : ahead.slice(0, 3));
 
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const fmtTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
@@ -55,8 +57,8 @@
       </li>
     {/each}
   </ol>
-  {#if events.length > 3}
-    <button type="button" class="more" aria-expanded={all} onclick={() => (all = !all)}>{all ? 'Show fewer' : `Show all ${events.length} in the next four months`}</button>
+  {#if ahead.length > 3}
+    <button type="button" class="more" aria-expanded={all} onclick={() => (all = !all)}>{all ? 'Show fewer' : `Show all ${ahead.length} in the next four months`}</button>
   {/if}
   <p class="note">Pick one to set the clock to that moment. Dates are UTC; meteor shower peaks shift by a day or so each year.</p>
 </section>

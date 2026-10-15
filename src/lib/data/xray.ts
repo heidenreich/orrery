@@ -112,7 +112,7 @@ export function radioBlackout(flux: number): number {
 /** "Quiet", "C-class: a common, small flare", "X-class: a major flare". */
 export function flareWords(flux: number): string {
   if (flux >= 1e-4) return 'X-class: a major flare';
-  if (flux >= 1e-5) return 'M-class: a medium flare';
+  if (flux >= 1e-5) return 'M-class: a moderate flare';
   if (flux >= 1e-6) return 'C-class: a small flare or an active Sun';
   return 'Quiet';
 }

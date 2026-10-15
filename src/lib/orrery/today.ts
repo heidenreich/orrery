@@ -4,7 +4,8 @@
 
 import { craftState, type SpacecraftData } from '../data/spacecraft-data';
 import type { WeatherData } from '../data/weather-data';
-import { flareClass } from '../data/xray';
+import { flareClass, XRAY_MAX_AGE_HOURS } from '../data/xray';
+import { SOLAR_WIND_MAX_AGE_HOURS } from '../data/solar-wind';
 import { KP_MAX_AGE_HOURS, kpStep, kpWords } from '../data/kp';
 import { celsius, km, lightTime } from '../format';
 import type { WorldId } from './craft';
@@ -39,9 +40,11 @@ const auroraShort = (raw: number, kp = kpStep(raw)) =>
 
 export function todayLines(now: number, weather: WeatherData | null, spacecraft: SpacecraftData | null): TodayLine[] {
   const lines: TodayLine[] = [];
-  const x = weather?.xray.summary, w = weather?.solarWind.summary;
-  if (x || w) {
-    const parts = [x ? `X-rays at ${flareClass(x.latest.flux)}, ${flareLevel(x.latest.flux)}` : null, w ? `solar wind ${Math.round(w.latest.speed)} km/s` : null];
+  // Each reading only while it is recent enough to describe now, as in the Sun and Earth panels.
+  const fresh = <T extends { time: string }>(p: T | undefined, hours: number) => (p && now - Date.parse(p.time) <= hours * 3_600_000 ? p : undefined);
+  const xl = fresh(weather?.xray.summary?.latest, XRAY_MAX_AGE_HOURS), wl = fresh(weather?.solarWind.summary?.latest, SOLAR_WIND_MAX_AGE_HOURS);
+  if (xl || wl) {
+    const parts = [xl ? `X-rays at ${flareClass(xl.flux)}, ${flareLevel(xl.flux)}` : null, wl ? `solar wind ${Math.round(wl.speed)} km/s` : null];
     lines.push({ focus: 'sun', label: 'Sun', text: parts.filter(Boolean).join(' · ') });
   }
   const k = freshKp(weather, now);
@@ -55,8 +58,8 @@ export function todayLines(now: number, weather: WeatherData | null, spacecraft:
   const r = weather?.mars.report;
   if (r && (r.minTemp !== null || r.maxTemp !== null)) {
     const range = [r.minTemp, r.maxTemp].map((t) => (t === null ? '?' : celsius(t))).join(' to ');
-    const day = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${r.earthDate}T12:00:00Z`));
-    lines.push({ focus: 'mars', label: 'Mars', text: `${range} at Gale Crater in Curiosity's latest report, for sol ${r.sol} (${day} on Earth)` });
+    const day = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${r.earthDate}T12:00:00Z`));
+    lines.push({ focus: 'mars', label: 'Mars', text: `Air ${range} at Gale Crater in Curiosity's latest report, for sol ${r.sol} (${day} on Earth)` });
   }
 
   const v1 = spacecraft?.craft.find((t) => t.id === 'voyager-1');
@@ -78,12 +81,15 @@ function freshKp(weather: WeatherData | null, now: number) {
 
 /**
  * When the oldest of the space weather readings shown was fetched (each feed can fall back to an
- * older copy on its own), or null. Mars's report gives its own date.
+ * older copy on its own), or null if none is shown. Mars's report gives its own date.
  */
-export function readingsFetchedAt(weather: WeatherData | null): string | null {
+export function readingsFetchedAt(weather: WeatherData | null, now: number): { at: string; feeds: number } | null {
   if (!weather) return null;
-  const times = [weather.xray?.summary && weather.xray.fetchedAt, weather.solarWind.summary && weather.solarWind.fetchedAt, weather.kp.summary && weather.kp.fetchedAt].filter(
-    (t): t is string => !!t
-  );
-  return times.length ? times.sort()[0] : null;
+  const shown = todayLines(now, weather, null).map((l) => l.label);
+  const times = [
+    shown.includes('Sun') && weather.xray?.summary && weather.xray.fetchedAt,
+    shown.includes('Sun') && weather.solarWind.summary && weather.solarWind.fetchedAt,
+    shown.includes('Earth') && weather.kp.fetchedAt
+  ].filter((t): t is string => !!t);
+  return times.length ? { at: times.sort()[0], feeds: times.length } : null;
 }

@@ -96,7 +96,10 @@ export function upcomingEvents(fromMs: number, days = 120, spacecraft: Spacecraf
   for (let e: LunarEclipseInfo = SearchLunarEclipse(start); e.peak.date.getTime() <= until; e = NextLunarEclipse(e.peak)) {
     add({
       ms: e.peak.date.getTime(), title: `${ECLIPSE_WORDS[e.kind] ?? ''} lunar eclipse`.trim(), focus: 'earth', kind: 'eclipse',
-      detail: e.kind === 'total' ? 'Earth’s shadow covers the Moon, turning it red; seen from the whole night side.' : 'Earth’s shadow falls on part of the Moon; seen from the whole night side.'
+      detail:
+        e.kind === 'total' ? 'Earth’s shadow covers the Moon, turning it red; seen from the whole night side.'
+        : e.kind === 'partial' ? 'Earth’s shadow falls on part of the Moon; seen from the whole night side.'
+        : 'Only Earth’s faint outer shadow touches the Moon: a slight dimming that is hard to notice.'
     });
   }
   for (let e: GlobalSolarEclipseInfo = SearchGlobalSolarEclipse(start); e.peak.date.getTime() <= until; e = NextGlobalSolarEclipse(e.peak)) {
@@ -162,7 +165,7 @@ export function upcomingEvents(fromMs: number, days = 120, spacecraft: Spacecraf
             ms: f.ms, title: `${craftById(t.id).name} flies past ${p.name}`, focus: t.id, kind: 'flyby',
             // The trajectory here is sampled daily, too coarse for the true closest distance (often a
             // few thousand km), so give only the date.
-            detail: 'A close pass for a gravity assist, bending its path on toward its target.'
+            detail: 'A close pass by the planet, whose gravity bends the spacecraft’s path.'
           });
         }
       }

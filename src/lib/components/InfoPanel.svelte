@@ -181,6 +181,10 @@
         {#if typeof craft.from !== 'string'}This site keeps only about {Math.round((craft.from.daysBack + craft.daysAhead) / 30)} months
           of its path around today, sampled finely enough to follow it.{/if}
       </p>
+    {:else}
+      <p class="empty" data-testid="craft-no-track">
+        {spacecraft ? 'Its trajectory isn’t available right now, so it isn’t shown in the 3D view.' : 'Loading its trajectory…'}
+      </p>
     {/if}
     <dl class="stats">
       <dt>Launched</dt><dd>{fmtDate.format(new Date(`${craft.launched}T00:00:00Z`))}</dd>

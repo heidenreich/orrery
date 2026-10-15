@@ -10,6 +10,8 @@ describe('format', () => {
   it('writes distances in millions or billions of km', () => {
     expect(km(1)).toBe('149.6 million km');
     expect(km(8.776)).toBe('1.31 billion km');
+    // Just under a billion rounds up to it rather than reading "1,000 million".
+    expect(km(6.6845)).toBe('1 billion km');
   });
 
   it('writes light travel time in minutes or hours', () => {
