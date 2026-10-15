@@ -38,7 +38,10 @@
       neptune: asset('/textures/neptune.webp'),
       moon: asset('/textures/moon.webp')
     },
-    ring: asset('/textures/saturn-ring.webp')
+    ring: asset('/textures/saturn-ring.webp'),
+    // NASA 3D Resources (see static/models/LICENSE.txt).
+    models: { voyager: asset('/models/voyager.glb'), parker: asset('/models/parker.glb') },
+    dracoPath: asset('/draco/draco_decoder.wasm').replace(/draco_decoder\.wasm$/, '')
   };
 
   let container: HTMLDivElement;

@@ -192,7 +192,11 @@
       <p class="note" data-testid="craft-source">
         Trajectory from NASA JPL's Horizons system, fetched {ago(track.fetchedAt, now)}{track.source === 'previous'
           ? ' (Horizons was unreachable at the last update, so this is the previous copy)'
-          : ''}.
+          : ''}.{#if craft.model}
+          3D model from <a href="https://github.com/nasa/NASA-3D-Resources" rel="noopener" target="_blank">NASA 3D Resources</a>,
+          drawn far larger than life and pointed as the real one points ({craft.model.toward === 'sun'
+            ? 'heat shield to the Sun'
+            : 'dish to Earth'}).{/if}
       </p>
     {/if}
   {:else if !body}
@@ -500,6 +504,7 @@
     color: var(--ink-dim);
   }
 
+  .note a,
   .credit a {
     color: inherit;
     text-underline-offset: 2px;

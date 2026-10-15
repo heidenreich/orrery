@@ -651,3 +651,22 @@ test('planets show their moons, labelled while the planet is selected', async ({
   await expect(page.getByTestId('moons-shown')).toContainText('In the 3D view: the Moon, in its real direction from Earth');
   expect(errors).toEqual([]);
 });
+
+test('Voyager and Parker load their NASA 3D models only when selected', async ({ page }) => {
+  const errors = trackErrors(page);
+  const fetched: string[] = [];
+  page.on('response', (r) => r.ok() && /\/(models|draco)\//.test(r.url()) && fetched.push(r.url().split('/').slice(-2).join('/')));
+  await page.goto('/');
+  await page.waitForTimeout(1000);
+  expect(fetched).toEqual([]); // nothing loads until a spacecraft with a model is picked
+
+  await page.getByRole('combobox', { name: 'World' }).selectOption({ label: 'Voyager 1' });
+  await expect.poll(() => fetched.sort()).toEqual(['draco/draco_decoder.wasm', 'draco/draco_wasm_wrapper.js', 'models/voyager.glb']);
+  await expect(panel(page)).toContainText('3D model from NASA 3D Resources');
+  await expect(panel(page)).toContainText('dish to Earth');
+
+  await page.getByRole('combobox', { name: 'World' }).selectOption({ label: 'Parker Solar Probe' });
+  await expect.poll(() => fetched).toContain('models/parker.glb');
+  await expect(panel(page)).toContainText('heat shield to the Sun');
+  expect(errors).toEqual([]);
+});

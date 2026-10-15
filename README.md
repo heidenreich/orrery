@@ -93,6 +93,8 @@ src/
   routes/+page.svelte       The page: header, clock, controls
   routes/data/weather.json  Prerendered data file, built from NASA and NOAA
 static/textures/            Planet, Moon, Sun and ring images (Solar System Scope, CC BY 4.0)
+static/models/              Voyager and Parker Solar Probe models (NASA 3D Resources, no copyright)
+static/draco/               three's Draco decoder for those models (npm run sync:draco after a three upgrade)
 tests/e2e/                  Browser smoke tests
 ```
 
@@ -171,6 +173,18 @@ identical halves (`static/textures/LICENSE.txt`). About 800 KB in all, loaded
 after the scene appears; until then, or if one fails, the drawn textures in
 `textures.ts` stay. Venus keeps its drawn cloud texture, since the only Venus
 map shows the radar-mapped surface beneath the clouds.
+
+## Spacecraft models
+
+Voyager (used for both probes) and Parker Solar Probe are NASA's own models from
+[NASA 3D Resources](https://github.com/nasa/NASA-3D-Resources), which describes
+them as free and without copyright (`static/models/LICENSE.txt`). They load only
+when one of those spacecraft is selected, with three's Draco decoder copied into
+`static/draco/`; a unit test fails if that copy no longer matches the installed
+three, and `npm run sync:draco` refreshes it. The models are drawn far larger
+than life and pointed as the real ones are: Voyager's dish at Earth, Parker's
+heat shield at the Sun. New Horizons, Europa Clipper and JUICE have no glTF
+model there, so they keep their markers.
 
 ## Licence
 

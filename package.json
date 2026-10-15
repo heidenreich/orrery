@@ -15,7 +15,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:build": "vitest run --config vitest.build.config.ts"
+    "test:build": "vitest run --config vitest.build.config.ts",
+    "sync:draco": "cp node_modules/three/examples/jsm/libs/draco/gltf/draco_decoder.wasm node_modules/three/examples/jsm/libs/draco/gltf/draco_wasm_wrapper.js static/draco/"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

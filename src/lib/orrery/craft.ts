@@ -21,12 +21,26 @@ export interface Craft {
   /** Horizons step size, e.g. "60 d" or "6 h". Uniform, so the file stores only the first time. */
   step: string;
   about: string[];
+  /** A NASA 3D model (static/models/), shown when selected, and how to point it. */
+  model?: CraftModel;
 }
+
+export type ModelFile = 'voyager' | 'parker';
+
+export interface CraftModel {
+  file: ModelFile;
+  /** The model's axis that should point at `toward`: Voyager's dish (+y) at Earth, Parker's heat
+   * shield (−z) at the Sun. Read from the models themselves. */
+  axis: [number, number, number];
+  toward: 'earth' | 'sun';
+}
+
+const VOYAGER_MODEL: CraftModel = { file: 'voyager', axis: [0, 1, 0], toward: 'earth' };
 
 export const CRAFT: Craft[] = [
   {
     id: 'voyager-1', name: 'Voyager 1', horizonsId: '-31', launched: '1977-09-05', agency: 'NASA',
-    from: '1977-09-10', daysAhead: 365, step: '60 d',
+    from: '1977-09-10', daysAhead: 365, step: '60 d', model: VOYAGER_MODEL,
     about: [
       'The most distant human-made object, in interstellar space since August 2012.',
       'Flew past Jupiter (1979) and Saturn (1980), then turned back to take the “Pale Blue Dot” photo of Earth in 1990.'
@@ -34,7 +48,7 @@ export const CRAFT: Craft[] = [
   },
   {
     id: 'voyager-2', name: 'Voyager 2', horizonsId: '-32', launched: '1977-08-20', agency: 'NASA',
-    from: '1977-08-25', daysAhead: 365, step: '60 d',
+    from: '1977-08-25', daysAhead: 365, step: '60 d', model: VOYAGER_MODEL,
     about: [
       'The only spacecraft to visit Uranus (1986) and Neptune (1989), after Jupiter and Saturn.',
       'Crossed into interstellar space in November 2018.'
@@ -51,6 +65,7 @@ export const CRAFT: Craft[] = [
   {
     id: 'parker', name: 'Parker Solar Probe', horizonsId: '-96', launched: '2018-08-12', agency: 'NASA',
     from: { daysBack: 90 }, daysAhead: 90, step: '6 h',
+    model: { file: 'parker', axis: [0, 0, -1], toward: 'sun' },
     about: [
       'Flies through the Sun’s outer atmosphere; its closest passes, 6.1 million km from the surface, began in December 2024.',
       'The fastest object ever built, about 190 km/s at closest approach.'
