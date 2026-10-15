@@ -3,6 +3,7 @@
   import { asset } from '$app/paths';
   import { ALL_BODIES, type PositionsAU } from '$lib/orrery/bodies';
   import { craftById, type WorldId } from '$lib/orrery/craft';
+  import { MOONS, type MoonId } from '$lib/orrery/moons';
   import type { SpacecraftData } from '$lib/data/spacecraft-data';
   import type { ScaleMode, TextureUrls } from '$lib/orrery/scene';
 
@@ -34,13 +35,14 @@
       jupiter: asset('/textures/jupiter.webp'),
       saturn: asset('/textures/saturn.webp'),
       uranus: asset('/textures/uranus.webp'),
-      neptune: asset('/textures/neptune.webp')
+      neptune: asset('/textures/neptune.webp'),
+      moon: asset('/textures/moon.webp')
     },
     ring: asset('/textures/saturn-ring.webp')
   };
 
   let container: HTMLDivElement;
-  const labels: Partial<Record<WorldId, HTMLElement>> = $state({});
+  const labels: Partial<Record<WorldId | MoonId, HTMLElement>> = $state({});
   let scene: import('$lib/orrery/scene').OrreryScene | undefined = $state();
   let failed = $state(false);
   let contextLost = $state(false);
@@ -130,6 +132,11 @@
       {b.name}
     </button>
   {/each}
+  <!-- Moon names, shown while their planet is selected; not buttons (a click on the moon itself
+       selects its planet). -->
+  {#each MOONS as m (m.id)}
+    <span class="label moon" bind:this={labels[m.id]} hidden>{m.name}</span>
+  {/each}
   {#each spacecraft?.craft ?? [] as t (t.id)}
     <button
       type="button"
@@ -215,6 +222,13 @@
 
   .label:hover {
     color: var(--ink);
+  }
+
+  .label.moon {
+    pointer-events: none;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--ink-dim);
   }
 
   .label.craft {

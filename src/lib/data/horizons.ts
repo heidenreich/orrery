@@ -2,7 +2,7 @@
 // https://ssd-api.jpl.nasa.gov/doc/horizons.html
 // The API returns JSON with the classic text ephemeris in "result": rows between $$SOE and $$EOE,
 // here in CSV as "JDTDB, Calendar Date (TDB), X, Y, Z, VX, VY, VZ," in AU and AU/day,
-// heliocentric (CENTER 500@10), ecliptic J2000 (REF_PLANE ECLIPTIC, REF_SYSTEM ICRF), the
+// heliocentric (CENTER 500@10) or planet-centred for moons, ecliptic J2000 (REF_PLANE ECLIPTIC, REF_SYSTEM ICRF), the
 // same frame as the planet positions (ephemeris.ts).
 
 export const HORIZONS_API = 'https://ssd.jpl.nasa.gov/api/horizons.api';
@@ -10,7 +10,7 @@ export const HORIZONS_API = 'https://ssd.jpl.nasa.gov/api/horizons.api';
 /** Seconds TDB runs ahead of UTC (32.184 + 37 leap seconds), close enough for display. */
 const TDB_MINUS_UTC_S = 69.184;
 
-export function horizonsUrl(target: string, start: string, stop: string, step: string): string {
+export function horizonsUrl(target: string, start: string, stop: string, step: string, center = '500@10'): string {
   const q = (v: string) => `'${v}'`;
   const params: Record<string, string> = {
     format: 'json',
@@ -18,7 +18,7 @@ export function horizonsUrl(target: string, start: string, stop: string, step: s
     OBJ_DATA: q('NO'),
     MAKE_EPHEM: q('YES'),
     EPHEM_TYPE: q('VECTORS'),
-    CENTER: q('500@10'),
+    CENTER: q(center),
     REF_PLANE: q('ECLIPTIC'),
     REF_SYSTEM: q('ICRF'),
     VEC_TABLE: q('2'),

@@ -13,6 +13,7 @@
   import { FACTS, MOONS_CHECKED, gravityText, massText } from '$lib/orrery/facts';
   import { northSeason } from '$lib/orrery/seasons';
   import { craftById, isCraftId, type WorldId } from '$lib/orrery/craft';
+  import { moonsOf } from '$lib/orrery/moons';
   import { AU_PER_DAY_KMS, craftState, FLYBY_AU, trackEnd, type SpacecraftData } from '$lib/data/spacecraft-data';
 
   interface Props {
@@ -41,6 +42,13 @@
   const bodyId = $derived(selected && !isCraftId(selected) ? selected : null);
   const body = $derived(bodyId ? bodyById(bodyId) : null);
   const facts = $derived(bodyId ? FACTS[bodyId] : null);
+  // Moons drawn in the 3D view for this planet (Titan and Triton only once their data is in).
+  const shownMoons = $derived(
+    bodyId && bodyId !== 'sun'
+      ? moonsOf(bodyId).filter((m) => m.source === 'astronomy-engine' || spacecraft?.moons.some((t) => t.id === m.id))
+      : []
+  );
+  const listWords = (names: string[]) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
 
   // The selected spacecraft, and where it is at the clock's time.
   const craft = $derived(selected && isCraftId(selected) ? craftById(selected) : null);
@@ -217,7 +225,7 @@
     </table>
     <p class="hint">Choose a world here, from the World menu, or by clicking it. Drag to rotate, scroll or pinch to zoom.</p>
     <p class="credit" data-testid="texture-credit">
-      Planet and Sun images by <a href="https://www.solarsystemscope.com/textures/" rel="noopener" target="_blank">Solar System Scope</a>,
+      Planet, Moon and Sun images by <a href="https://www.solarsystemscope.com/textures/" rel="noopener" target="_blank">Solar System Scope</a>,
       based on NASA data, under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener" target="_blank">CC BY 4.0</a>.
     </p>
   {:else}
@@ -343,6 +351,14 @@
                 ? ` as of ${MOONS_CHECKED}, and new small ones keep turning up`
                 : ''}. {facts.moons.notable}.
             </p>
+            {#if shownMoons.length}
+              <p class="note" data-testid="moons-shown">
+                In the 3D view: {listWords(shownMoons.map((m) => m.id === 'moon' ? 'the Moon' : m.name))}, in {shownMoons.length > 1
+                  ? 'their'
+                  : 'its'} real direction from {body.name}. Distances are compressed so {shownMoons.length > 1 ? 'they fit' : 'it fits'}
+                beside the planet, which is drawn far larger than life.
+              </p>
+            {/if}
           </section>
         {/if}
         {#if facts.rings}

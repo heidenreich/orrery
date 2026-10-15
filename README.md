@@ -84,6 +84,7 @@ src/
   lib/data/horizons.ts      JPL Horizons requests and vector-table parser
   lib/data/spacecraft-data.ts  Builds, checks and interpolates the spacecraft data file
   lib/orrery/craft.ts       The spacecraft shown, with their Horizons IDs and trajectory windows
+  lib/orrery/moons.ts       The Moon, Jupiter's four large moons (Astronomy Engine), Titan and Triton (Horizons)
   lib/data/weather-data.ts  Builds the data file, with fallback to the last good copy
   lib/data/weather.ts       Loads the data file in the browser
   lib/data/fetch-json.ts    Fetch with timeout and console logging
@@ -91,7 +92,7 @@ src/
   lib/components/           Orrery canvas, info panel, solar wind card
   routes/+page.svelte       The page: header, clock, controls
   routes/data/weather.json  Prerendered data file, built from NASA and NOAA
-static/textures/            Planet, Sun and ring images (Solar System Scope, CC BY 4.0)
+static/textures/            Planet, Moon, Sun and ring images (Solar System Scope, CC BY 4.0)
 tests/e2e/                  Browser smoke tests
 ```
 
@@ -161,7 +162,7 @@ Notes on the feeds (checked 2026-10-13):
 
 ## Images
 
-The Sun, planet and Saturn ring images in `static/textures/` are from
+The Sun, planet, Moon and Saturn ring images in `static/textures/` are from
 [Solar System Scope](https://www.solarsystemscope.com/textures/), based on NASA
 imagery, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 and credited in the page's overview panel. They came via the Qt 3D project's

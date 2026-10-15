@@ -105,6 +105,7 @@ jobs:
             console.log(`Kp: ${d.kp.source}${k ? `, ${k.latest.kp} for ${k.latest.time}, ${k.series.length} intervals` : ""}${d.kp.error ? ", error: " + d.kp.error : ""}`);
             const x = d.xray.summary;
             const c = require("./build/data/spacecraft.json");
+            console.log(`Moons from Horizons: ${(c.moons || []).map((t) => `${t.id} ${t.source} (${t.p.length / 3} samples)`).join(", ") || "none"}`);
             console.log(`Spacecraft: ${c.craft.map((t) => `${t.id} ${t.source} (${t.p.length / 3} samples)`).join(", ") || "none"}${c.missing.length ? `; missing: ${c.missing.map((m) => `${m.id} (${m.reason})`).join("; ")}` : ""}`);
             console.log(`X-ray: ${d.xray.source}${x ? `, ${x.latest.flux} W/m² at ${x.latest.time}, 24 h peak ${x.peak.flux} at ${x.peak.time}, ${x.series.length} points` : ""}${d.xray.error ? ", error: " + d.xray.error : ""}`);
           ' | tee -a "$GITHUB_STEP_SUMMARY"

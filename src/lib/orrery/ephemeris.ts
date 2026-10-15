@@ -29,6 +29,10 @@ const BODY: Record<PlanetId, Body> = {
 /** Heliocentric position (AU) in ecliptic J2000 coordinates, as orbits.ts uses. */
 export function planetPosition(id: PlanetId, ms: number): Vec3 {
   // Takes UTC and applies the TT−UT difference itself.
-  const v = HelioVector(BODY[id], new Date(ms));
+  return eqjToEcliptic(HelioVector(BODY[id], new Date(ms)));
+}
+
+/** Astronomy Engine's J2000 equatorial vectors to the ecliptic J2000 frame used here. */
+export function eqjToEcliptic(v: { x: number; y: number; z: number }): Vec3 {
   return { x: v.x, y: v.y * COS_E + v.z * SIN_E, z: -v.y * SIN_E + v.z * COS_E };
 }

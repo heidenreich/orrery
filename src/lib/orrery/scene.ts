@@ -3,8 +3,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLANETS, SUN, planetPositions, type BodyId, type Planet, type PlanetId, type PositionsAU } from './bodies';
 import { orbitPath, type Vec3 } from './orbits';
 import { poleQuaternion, toScene } from './axes';
-import { craftState, trackEnd, type CraftTrack, type SpacecraftData } from '../data/spacecraft-data';
+import { craftState, trackEnd, type CraftTrack, type SpacecraftData, type Track } from '../data/spacecraft-data';
 import { isCraftId, type CraftId, type WorldId } from './craft';
+import { computedMoonOffsets, displayRadius, isMoonId, MOONS, type Moon, type MoonId } from './moons';
 import { SPIN_TILT } from './seasons';
 import { REAL_TIME, SIM_MAX_MS, SIM_MIN_MS } from './time';
 import { glowTexture, planetTexture, ringTexture, seededRandom } from './textures';
@@ -30,7 +31,7 @@ export type ScaleMode = 'compressed' | 'true';
 
 export interface SceneOptions {
   container: HTMLElement;
-  labels: Partial<Record<WorldId, HTMLElement>>;
+  labels: Partial<Record<WorldId | MoonId, HTMLElement>>;
   onSelect: (id: WorldId) => void;
   /** Called a few times per second with the simulated time and real positions. */
   onTick: (simMs: number, positions: PositionsAU) => void;
@@ -43,7 +44,7 @@ export interface SceneOptions {
 }
 
 export interface TextureUrls {
-  bodies: Partial<Record<BodyId, string>>;
+  bodies: Partial<Record<BodyId | MoonId, string>>;
   /** A top-down picture of the rings laid out as RING_IMAGE describes. */
   ring?: string;
 }
@@ -58,6 +59,16 @@ const RING_OUTER = 2.27;
 const SPIN_ONLY_FRAME_MS = 33;
 /** While playing with nothing visibly moving, redraw this often so real-time positions stay current. */
 const IDLE_FRAME_MS = 1000;
+
+interface MoonNode {
+  moon: Moon;
+  mesh: THREE.Mesh;
+  parent: PlanetNode;
+  /** Drawn radius as a fraction of the parent's. */
+  sizeRatio: number;
+  /** For Horizons moons, once the data file has arrived. */
+  track?: Track;
+}
 
 interface CraftNode {
   track: CraftTrack;
@@ -122,7 +133,8 @@ export class OrreryScene {
   private free = { x: 1, y: 1 };
   private resizeObserver!: ResizeObserver;
   private downAt: [number, number] | null = null;
-  private labelWidths = new Map<WorldId, number>();
+  private labelWidths = new Map<string, number>();
+  private moons: MoonNode[] = [];
   private motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   private reduceMotion = this.motionQuery.matches;
   // Rendering on demand: see frame().
@@ -189,6 +201,7 @@ export class OrreryScene {
     this.addStars(rand);
     this.addBelt(rand);
     for (const p of PLANETS) this.addPlanet(p, rand);
+    for (const m of MOONS) this.addMoon(m);
 
     const canvas = this.renderer.domElement;
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -247,8 +260,9 @@ export class OrreryScene {
       m.color.set(0xffffff);
       m.needsUpdate = true;
     };
-    for (const [id, url] of Object.entries(urls.bodies) as [BodyId, string][]) {
-      load(url, (t) => swap(id === 'sun' ? this.sunMesh : this.node(id).mesh, t));
+    for (const [id, url] of Object.entries(urls.bodies) as [BodyId | MoonId, string][]) {
+      const mesh = id === 'sun' ? this.sunMesh : isMoonId(id) ? this.moons.find((m) => m.moon.id === id)?.mesh : this.node(id).mesh;
+      if (mesh) load(url, (t) => swap(mesh, t));
     }
     const saturn = this.nodes.find((n) => n.ring);
     if (urls.ring && saturn?.ring) {
@@ -319,6 +333,38 @@ export class OrreryScene {
     }
   }
 
+  private addMoon(m: Moon) {
+    const parent = this.node(m.parent);
+    // Smaller than the planet by 0.8 × the square root of the real ratio: the Moon at about 0.42 of
+    // Earth's drawn size (really 0.27), Jupiter's moons at 0.10–0.16 of Jupiter's (really 0.02–0.04),
+    // so the small ones stay visible and the Moon doesn't rival Earth.
+    const sizeRatio = 0.8 * Math.sqrt(m.radiusKm / parent.planet.radiusKm);
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(parent.size * sizeRatio, 24, 16),
+      new THREE.MeshStandardMaterial({ color: m.color, roughness: 0.95, metalness: 0 })
+    );
+    mesh.userData.id = m.parent; // clicking a moon selects its planet
+    mesh.visible = false;
+    this.scene.add(mesh);
+    this.moons.push({ moon: m, mesh, parent, sizeRatio });
+  }
+
+  private placeMoons() {
+    const computed = computedMoonOffsets(this.simMs);
+    for (const n of this.moons) {
+      const off = computed[n.moon.id] ?? (n.track ? craftState(n.track, this.simMs)?.pos : undefined);
+      n.mesh.visible = !!off;
+      if (!off) continue;
+      const dir = toScene(off).normalize();
+      const r = n.parent.size * this.bodyScale * displayRadius(n.moon, n.parent.planet.radiusKm);
+      n.mesh.position.copy(n.parent.holder.position).addScaledVector(dir, r);
+      n.mesh.scale.setScalar(this.bodyScale);
+      // Tidally locked: the same face (longitude 0, the middle of the map) always faces the planet.
+      n.mesh.lookAt(n.parent.holder.position);
+      n.mesh.rotateY(-Math.PI / 2);
+    }
+  }
+
   /** Show these spacecraft (replacing any shown before). */
   setSpacecraft(data: SpacecraftData) {
     for (const c of this.craft) {
@@ -347,6 +393,7 @@ export class OrreryScene {
       this.scene.add(trail, marker);
       return { track, marker, trail, posAU: null };
     });
+    for (const m of this.moons) m.track = data.moons.find((t) => t.id === m.moon.id);
     this.lastOrbitMs = null; // redraw trails with the orbits on the next frame
     // Only recolour: the file can arrive after the user has zoomed, and select() would reset that.
     this.highlightTrails();
@@ -549,7 +596,8 @@ export class OrreryScene {
     const ray = new THREE.Raycaster();
     ray.setFromCamera(ndc, this.camera);
     const markers = this.craft.filter((c) => c.marker.visible).map((c) => c.marker);
-    const hit = ray.intersectObjects([...markers, this.sunMesh, ...this.nodes.map((n) => n.mesh)], false)[0];
+    const moons = this.moons.filter((m) => m.mesh.visible).map((m) => m.mesh);
+    const hit = ray.intersectObjects([...markers, ...moons, this.sunMesh, ...this.nodes.map((n) => n.mesh)], false)[0];
     if (hit) this.opts.onSelect(hit.object.userData.id as WorldId);
   };
 
@@ -591,6 +639,7 @@ export class OrreryScene {
 
     this.positions = planetPositions(this.simMs);
     this.placeCraft();
+    this.placeMoons();
     const spin = spinning ? step : 0;
     for (const n of this.nodes) {
       n.holder.position.copy(this.scaled(toScene(this.positions[n.planet.id as PlanetId])));
@@ -654,7 +703,7 @@ export class OrreryScene {
     }
   }
 
-  private labelWidth(id: WorldId, el: HTMLElement) {
+  private labelWidth(id: string, el: HTMLElement) {
     let width = this.labelWidths.get(id);
     if (!width) {
       el.hidden = false;
@@ -683,8 +732,10 @@ export class OrreryScene {
   private placeLabels() {
     const { clientWidth: w, clientHeight: h } = this.opts.container;
     const avoid = this.avoidRects();
-    // Spacecraft labels come after every body's.
-    const all: WorldId[] = [...LABEL_PRIORITY, ...this.craft.map((c) => c.track.id)];
+    // Spacecraft labels come after every body's; moons are labelled only while their planet is selected.
+    const moonIds = this.moons.filter((m) => m.parent.planet.id === this.selected).map((m) => m.moon.id);
+    for (const m of this.moons) if (!moonIds.includes(m.moon.id)) this.opts.labels[m.moon.id]?.setAttribute('hidden', '');
+    const all: (WorldId | MoonId)[] = [...LABEL_PRIORITY, ...moonIds, ...this.craft.map((c) => c.track.id)];
     const order = this.selected ? [this.selected, ...all.filter((id) => id !== this.selected)] : all;
     const placed: { x: number; y: number; w: number }[] = [];
     for (const id of order) {
@@ -692,7 +743,15 @@ export class OrreryScene {
       if (!el) continue;
       let p: THREE.Vector3;
       let lift = 0;
-      if (isCraftId(id)) {
+      if (isMoonId(id)) {
+        const m = this.moons.find((n) => n.moon.id === id)!;
+        if (!m.mesh.visible) {
+          el.hidden = true;
+          continue;
+        }
+        p = m.mesh.position.clone();
+        p.y += m.parent.size * m.sizeRatio * this.bodyScale * 1.4;
+      } else if (isCraftId(id)) {
         const c = this.craft.find((n) => n.track.id === id);
         if (!c || !c.marker.visible) {
           el.hidden = true;

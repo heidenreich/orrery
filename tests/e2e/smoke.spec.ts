@@ -388,7 +388,7 @@ test('loads the planet images and credits them', async ({ page }) => {
   page.on('response', (r) => r.ok() && /\/textures\/[\w-]+\.webp$/.test(r.url()) && loaded.push(r.url().split('/').pop()!));
   await page.goto('/');
   await expect.poll(() => loaded.sort()).toEqual(
-    ['earth', 'jupiter', 'mars', 'mercury', 'neptune', 'saturn-ring', 'saturn', 'sun', 'uranus'].map((n) => `${n}.webp`).sort()
+    ['earth', 'jupiter', 'mars', 'mercury', 'moon', 'neptune', 'saturn-ring', 'saturn', 'sun', 'uranus'].map((n) => `${n}.webp`).sort()
   );
   const credit = page.getByTestId('texture-credit');
   await expect(credit).toContainText('Solar System Scope');
@@ -634,4 +634,20 @@ test('clicking a spacecraft marker in the 3D view selects it', async ({ page }) 
     await page.mouse.click(box.x + box.width / 2 + 3, box.y + box.height + 9);
     await expect(panel(page).getByRole('heading', { name: 'JUICE' })).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 20_000 });
+});
+
+test('planets show their moons, labelled while the planet is selected', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  const moonLabel = (name: string) => labels(page).locator('.label.moon', { hasText: name });
+  await expect(moonLabel('Ganymede')).toBeHidden();
+  await select(page, 'Jupiter');
+  for (const name of ['Io', 'Europa', 'Ganymede', 'Callisto']) await expect(moonLabel(name)).toBeVisible();
+  await expect(page.getByTestId('moons-shown')).toContainText('In the 3D view: Io, Europa, Ganymede and Callisto');
+
+  await select(page, 'Earth');
+  await expect(moonLabel('Moon')).toBeVisible();
+  await expect(moonLabel('Ganymede')).toBeHidden();
+  await expect(page.getByTestId('moons-shown')).toContainText('In the 3D view: the Moon, in its real direction from Earth');
+  expect(errors).toEqual([]);
 });

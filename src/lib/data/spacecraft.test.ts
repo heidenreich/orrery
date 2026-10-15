@@ -95,7 +95,7 @@ describe('spacecraft data file', () => {
       mutate(f.craft[0]);
       return parseSpacecraftData(f);
     };
-    expect(bad((t) => (t.id = 'enterprise'))).toEqual({ ok: false, reason: 'craft[0].id is not a known spacecraft' });
+    expect(bad((t) => (t.id = 'enterprise'))).toEqual({ ok: false, reason: 'craft[0].id is not a known object' });
     expect(bad((t) => t.v.pop())).toMatchObject({ ok: false });
     expect(bad((t) => (t.p[0] = 'far'))).toEqual({ ok: false, reason: 'craft[0].p has an implausible value' });
   });
@@ -125,6 +125,10 @@ describe('spacecraft data file', () => {
     expect(d.craft.map((t) => [t.id, t.source])).toEqual(CRAFT.map((c) => [c.id, c.id === 'juice' ? 'previous' : 'live']));
     expect(d.craft.find((t) => t.id === 'juice')?.error).toBe('HTTP 503');
     expect(d.missing).toEqual([]);
+    // Titan and Triton come from the same service, centred on their planets.
+    expect(d.moons.map((t) => t.id)).toEqual(['titan', 'triton']);
+    expect(calls.some((u) => u.includes("COMMAND=%27606%27") && u.includes("CENTER=%27500%40699%27"))).toBe(true);
+    expect(calls.some((u) => u.includes("COMMAND=%27801%27") && u.includes("CENTER=%27500%40899%27"))).toBe(true);
     expect(log.lines.some((l) => l.includes('Voyager 2: trajectory ends 2027-03-01; asking again'))).toBe(true);
     expect(parseSpacecraftData(JSON.parse(JSON.stringify(d)))).toEqual({ ok: true, data: d });
   });
