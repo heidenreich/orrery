@@ -94,7 +94,7 @@ test('renders the solar system and opens the Mars panel', async ({ page }) => {
   await select(page, 'Mars');
   await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
   await expect(panel(page)).toContainText('Curiosity weather report');
-  await expect(panel(page)).toContainText('Radio signal takes');
+  await expect(panel(page)).toContainText('Radio signal, one way');
 
   await page.keyboard.press('Escape');
   await expect(panel(page).getByRole('heading', { name: 'Pick a world' })).toBeVisible();
@@ -536,7 +536,7 @@ test('spacecraft appear in the World menu and open a panel with distance, signal
   const p = panel(page);
   await expect(p.getByRole('heading', { name: 'Voyager 1' })).toBeVisible();
   await expect(p).toContainText(/From the Sun\s*1\d\d\.\d\d AU/);
-  await expect(p).toContainText(/Radio signal takes\s*\d+ h/);
+  await expect(p).toContainText(/Radio signal, one way\s*\d+ h/);
   await expect(p).toContainText(/Speed\s*16\.9 km\/s/);
   await expect(p).toContainText('interstellar space');
   await expect(page.getByTestId('craft-source')).toContainText('Horizons');
@@ -594,7 +594,7 @@ test('a spacecraft on an Earth flyby shows its distance from Earth as approximat
   await page.goto('/');
   await page.getByRole('combobox', { name: 'World' }).selectOption({ label: 'Europa Clipper' });
   await expect(panel(page)).toContainText(/From Earth\s*about 1\.\d million km, approximate during this Earth flyby/);
-  await expect(panel(page)).toContainText(/Radio signal takes\s*about \d\.\d minutes/);
+  await expect(panel(page)).toContainText(/Radio signal, one way\s*about \d\.\d minutes/);
 });
 
 test('on a phone the controls are comfortable touch targets and the sheet sits clear of the toolbar', async ({ page }) => {
@@ -676,12 +676,12 @@ test('the overview sums up the solar system today and lists what is coming up', 
   const errors = trackErrors(page);
   await page.goto('/');
   const today = page.getByTestId('today');
-  await expect(today).toContainText(/Sun\s*Small C-class flares \(C1\.\d\) · solar wind \d+ km\/s/);
+  await expect(today).toContainText(/Sun\s*X-rays at C1\.\d, minor flare activity · solar wind \d+ km\/s/);
   await expect(today).toContainText(/Earth\s*Kp 3\.3, unsettled: auroras at high latitudes/);
-  await expect(page.getByTestId('tonight')).toContainText(/Tonight’s Moon: (new moon|waxing|first|full|waning|last)[^,]*, \d+% lit/);
+  await expect(page.getByTestId('tonight')).toContainText(/The Moon now: (new moon|waxing|first|full|waning|last)[^,]*, \d+% lit/);
   await expect(page.getByTestId('today-age')).toContainText('updated hourly');
   await expect(today).toContainText(/Mars\s*−71 °C to −5 °C at Gale Crater/);
-  await expect(today).toContainText(/Voyager 1\s*[\d.]+ billion km from Earth; a radio signal takes \d+ h \d+ min to reach it/);
+  await expect(today).toContainText(/Voyager 1\s*[\d.]+ billion km from Earth; a radio signal takes \d+ h \d+ min one way/);
   await today.getByRole('button', { name: 'Mars' }).click();
   await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
   await page.keyboard.press('Escape');
@@ -695,6 +695,9 @@ test('the overview sums up the solar system today and lists what is coming up', 
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
   await expect(page.getByText('Paused')).toBeVisible();
   expect(label).toMatch(/set the clock to then/);
+  // Off the real date, the panel says which parts follow the clock.
+  await page.keyboard.press('Escape');
+  if (!/today/.test(label)) await expect(page.getByTestId('clock-note')).toContainText('follow the clock');
   expect(errors).toEqual([]);
 });
 

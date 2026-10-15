@@ -25,6 +25,7 @@ import { PLANETS, planetById, type PlanetId } from './bodies';
 import { craftById, type WorldId } from './craft';
 import { planetPosition } from './ephemeris';
 import { distance } from './orbits';
+import { km } from '../format';
 import { seasons } from './seasons';
 
 export interface SkyEvent {
@@ -41,7 +42,6 @@ export interface SkyEvent {
 }
 
 const DAY_MS = 86_400_000;
-const AU_KM = 149_597_870.7;
 
 const ECLIPSE_WORDS: Record<string, string> = { total: 'Total', annular: 'Annular', partial: 'Partial', penumbral: 'Penumbral', hybrid: 'Hybrid' };
 
@@ -122,7 +122,7 @@ export function upcomingEvents(fromMs: number, days = 120, spacecraft: Spacecraf
     const d = distance(planetPosition(id, t), planetPosition('earth', t));
     add({
       ms: t, title: `${planetById(id).name} at opposition`, focus: id, kind: 'planet',
-      detail: `Opposite the Sun, up all night and near its closest to Earth: ${(d * AU_KM / 1e6).toFixed(0)} million km.`
+      detail: `Opposite the Sun, up all night and near its closest to Earth: ${km(d)}.`
     });
   }
 

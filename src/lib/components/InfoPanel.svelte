@@ -67,7 +67,7 @@
     return [
       ['From the Sun', `${fmtAU(length(p))} · ${km(length(p))}`],
       ['From Earth', rough ? `about ${km(d)}, approximate during this Earth flyby` : `${fmtAU(d)} · ${km(d)}`],
-      ['Radio signal takes', rough ? `about ${lightTime(d)}` : lightTime(d)],
+      ['Radio signal, one way', rough ? `about ${lightTime(d)}` : lightTime(d)],
       ['Speed', `${(length(v) * AU_PER_DAY_KMS).toFixed(1)} km/s relative to the Sun`]
     ];
   });
@@ -106,7 +106,7 @@
     const rows: [string, string][] = [['From the Sun', fmtAU(length(p))]];
     if (id !== 'earth') {
       const d = distance(p, earth);
-      rows.push(['From Earth', `${fmtAU(d)} · ${km(d)}`], ['Radio signal takes', lightTime(d)]);
+      rows.push(['From Earth', `${fmtAU(d)} · ${km(d)}`], ['Radio signal, one way', lightTime(d)]);
     }
     return rows;
   });
@@ -214,6 +214,12 @@
       Where every planet is, how far away and what season it is, for the date shown. Choose a world from
       the menu or by clicking it; drag to rotate, scroll or pinch to zoom.
     </p>
+    {#if simMs !== null && Math.abs(simMs - now) > 86_400_000}
+      <p class="clock-note" data-testid="clock-note">
+        Tonight’s sky and Solar system today are for the real date; Coming up and the table below follow
+        the clock, set to {fmtDate.format(new Date(simMs))}.
+      </p>
+    {/if}
     <TonightCard {now} {onselect} />
     <TodayCard {weather} {spacecraft} {now} {onselect} />
     {#if simMs !== null}
@@ -504,6 +510,12 @@
     color: var(--sun);
   }
 
+
+  .clock-note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--ink-dim);
+  }
 
   .credit {
     margin: 0;

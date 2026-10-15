@@ -18,6 +18,9 @@
 
 <section class="today" data-testid="today" aria-labelledby="today-heading">
   <p class="eyebrow" id="today-heading">Solar system today · {fmtDay.format(new Date(minute * 60_000))}</p>
+  {#if lines.length === 0}
+    <p class="note">The latest readings from the Sun, Earth and Mars aren’t available right now.</p>
+  {:else}
   <ul>
     {#each lines as l (l.label)}
       <li>
@@ -26,8 +29,9 @@
       </li>
     {/each}
   </ul>
+  {/if}
   {#if fetched}
-    <p class="note" data-testid="today-age">Sun and Earth readings from NOAA, updated hourly; these were fetched {ago(fetched, now)}.</p>
+    <p class="note" data-testid="today-age">Sun and Earth readings from NOAA, updated hourly; the oldest shown was fetched {ago(fetched, now)}.</p>
   {/if}
 </section>
 

@@ -74,15 +74,14 @@
   const t = (ms: number) => fmtTime.format(new Date(ms));
   const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' }).formatToParts(new Date()).find((p) => p.type === 'timeZoneName')?.value ?? '';
   const deg = (v: number, pos: string, neg: string) => `${Math.abs(v).toFixed(1)}° ${v >= 0 ? pos : neg}`;
-  // Without a place, the Moon tonight is roughly the Moon now.
+  // Without a place there is no dusk to work from, so this is the Moon now.
   const moonNow = $derived(moonAt(slot));
-  const already = $derived(sky?.dark ? sky.dark.from <= slot : false);
 </script>
 
 <section class="tonight" data-testid="tonight" aria-labelledby="tonight-heading">
   <p class="eyebrow" id="tonight-heading">Tonight’s sky{place ? ` · ${deg(place.latitude, 'N', 'S')}, ${deg(place.longitude, 'E', 'W')}` : ''}</p>
   {#if !place}
-    <p class="lead">Tonight’s Moon: {moonNow.phase.toLowerCase()}, {moonNow.lit}% lit. Share a place to see which planets you can spot, where to look and when.</p>
+    <p class="lead">The Moon now: {moonNow.phase.toLowerCase()}, {moonNow.lit}% lit. Share a place to see which planets you can spot, where to look and when.</p>
     <button type="button" class="primary" onclick={locate} disabled={locating}>{locating ? 'Finding you…' : 'Use my location'}</button>
     <details>
       <summary>Or enter a place</summary>
@@ -96,21 +95,25 @@
     <p class="note">Your location stays in this browser, rounded to about 10 km.</p>
   {:else if sky}
     {#if !sky.dark}
-      <p class="lead">The Sun doesn’t set far enough to get dark here tonight: it’s the midnight sun.</p>
+      <p class="lead">
+        {sky.polar === 'midnight-sun'
+          ? 'The Sun doesn’t set here tonight: it’s the midnight sun, so the planets are lost in daylight.'
+          : 'The Sun sets, but never far enough for the sky to get dark here tonight, so the planets are lost in the twilight.'}
+      </p>
     {:else}
       <p class="lead">
         {#if sky.polar === 'polar-night'}Polar night: the Sun doesn’t rise here today.
-        {:else if already}Bright planets show now, until {t(sky.dark.to)}; fainter ones need the darker hours.
+        {:else if sky.startsNow}Bright planets show now, until {t(sky.dark.to)}; fainter ones need the darker hours.
         {:else}Bright planets show from {t(sky.dark.from)}, in twilight, until {t(sky.dark.to)}; fainter ones need the darker hours.{/if}
         Times are in your time zone{zone ? ` (${zone})` : ''}{farAway ? ', not local time there' : ''}.
       </p>
       <ul>
         {#each sky.visible as o (o.id)}
           <li>
-            <button type="button" onclick={() => onselect(o.id === 'moon' ? 'earth' : o.id)}>{o.name}</button>
+            <button type="button" onclick={() => onselect(o.id === 'moon' ? 'earth' : o.id)} aria-label={o.id === 'moon' ? 'Moon: open Earth and the Moon' : undefined}>{o.name}</button>
             <span>
               {o.id === 'moon' ? `${sky.moon.phase}, ${sky.moon.lit}% lit.` : `${cap(brightness(o.magnitude))}.`}
-              {whenAndWhere(o, t)}
+              {whenAndWhere(o, t, sky)}
             </span>
           </li>
         {:else}
@@ -124,13 +127,14 @@
         </p>
       {/if}
       {#if !sky.visible.some((o) => o.id === 'moon')}<p class="note">The Moon ({sky.moon.phase.toLowerCase()}) isn’t up after dark tonight.</p>{/if}
+      {#if sky.washedOut.length}<p class="note">Up only while the sky is still too bright: {sky.washedOut.join(', ')}.</p>{/if}
       {#if sky.hidden.length}<p class="note">Not visible tonight: {sky.hidden.join(', ')}, too close to the Sun or below the horizon.</p>{/if}
     {/if}
     <p class="note">
       Visible means at least 10° above the horizon, clear of most trees and buildings, with the sky dark
       enough for that object.
-      <button type="button" class="link" onclick={() => save(null)}>Change place</button>
     </p>
+    <button type="button" class="link change" onclick={() => save(null)}>Change place</button>
   {/if}
 </section>
 
@@ -204,6 +208,22 @@
   .link {
     font-size: 12px;
     font-weight: 500;
+  }
+
+  /* Comfortable touch targets for the text buttons, without changing how the text reads. */
+  li button,
+  .link {
+    min-height: 24px;
+  }
+
+  .optics .link {
+    padding: 4px 0;
+  }
+
+  .change {
+    justify-self: start;
+    font-size: 13px;
+    padding: 4px 0;
   }
 
   li button:hover,

@@ -34,7 +34,8 @@
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const fmtTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   const when = (e: SkyEvent) => {
-    const days = Math.round((e.ms - day * DAY) / DAY);
+    // Whole UTC days from the clock's day, so 20:50 tonight is "today", not "tomorrow".
+    const days = Math.floor(e.ms / DAY) - day;
     const rel = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : days < 60 ? `in ${days} days` : `in ${Math.round(days / 30.44)} months`;
     const at = e.approximate || e.kind === 'flyby' ? '' : `, ${fmtTime.format(new Date(e.ms))} UTC`;
     return `${e.approximate ? 'around ' : ''}${fmtDate.format(new Date(e.ms))}${at} · ${rel}`;
@@ -55,7 +56,7 @@
     {/each}
   </ol>
   {#if events.length > 3}
-    <button type="button" class="more" onclick={() => (all = !all)}>{all ? 'Show fewer' : `Show all ${events.length} in the next four months`}</button>
+    <button type="button" class="more" aria-expanded={all} onclick={() => (all = !all)}>{all ? 'Show fewer' : `Show all ${events.length} in the next four months`}</button>
   {/if}
   <p class="note">Pick one to set the clock to that moment. Dates are UTC; meteor shower peaks shift by a day or so each year.</p>
 </section>

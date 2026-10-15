@@ -38,7 +38,7 @@
     <div class="big">Kp {k.kp.toFixed(k.kp % 1 ? 1 : 0)} <span class="level {level(k.kp)}">{kpWords(k.kp)}</span></div>
     {#if bars}
       <svg viewBox="0 0 {W} {H}" role="img" aria-label="Kp index for the last three days, peaking at {bars.peak.kp.toFixed(1)}">
-        <line class="g1" x1="0" x2={W} y1={H - (4.5 / MAX) * H} y2={H - (4.5 / MAX) * H} />
+        <line class="g1" x1="0" x2={W} y1={H - (4.67 / MAX) * H} y2={H - (4.67 / MAX) * H} />
         {#each bars.items as b (b.key)}<rect class={b.cls} x={b.x} y={b.y} width={Math.max(1, bars.w - 1)} height={b.h} rx="1" />{/each}
       </svg>
       <p class="range">Last 3 days, every 3 hours. The line marks where storms begin, at Kp 5− (4.7). Peak: Kp {bars.peak.kp.toFixed(1)}.</p>

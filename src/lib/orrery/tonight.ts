@@ -36,14 +36,21 @@ export interface Tonight {
   /** When bright planets show: civil dusk (Sun 6° below the horizon) to civil dawn, or from now if
    * that has already begun. Fainter objects need a darker sky inside this window. */
   dark: { from: number; to: number } | null;
-  /** Why there is no dark window: the Sun stays up, or (polar night) never rises. */
-  polar?: 'midnight-sun' | 'polar-night';
+  /**
+   * Unusual nights: the Sun stays up all night (midnight sun), sets but never gets 6° down (a white
+   * night, as in Reykjavik in June), or never rises (polar night, when the window is the next 12 hours).
+   */
+  polar?: 'midnight-sun' | 'white-night' | 'polar-night';
+  /** True when it was already dark at the moment asked, so the window starts now, not at dusk. */
+  startsNow: boolean;
   /** The Moon and the planets that can be seen by eye, Moon first then brightest first. */
   visible: SkyObject[];
   /** Planets up in a dark sky but too faint to find without binoculars (Uranus, Neptune). */
   optics: SkyObject[];
-  /** Planets not up after dark tonight (mostly too close to the Sun). */
+  /** Planets not up after dark tonight: too close to the Sun or below the horizon. */
   hidden: string[];
+  /** Planets up after dusk, but only while the sky is still too bright for them. */
+  washedOut: string[];
   /** The Moon at dusk (or now, if already dark). */
   moon: { phase: string; lit: number };
 }
@@ -82,62 +89,73 @@ const search = (dir: 1 | -1, obs: Observer, from: FlexibleDateTime, days: number
  * The night that `now` is in, or the next one if it is still day. Decided from the searches alone
  * (is the next dawn before the next dusk?), so the edge cases agree with the times found.
  */
-function darkWindow(now: number, obs: Observer): Pick<Tonight, 'dark' | 'polar'> {
+function darkWindow(now: number, obs: Observer): Pick<Tonight, 'dark' | 'polar' | 'startsNow'> {
   const dusk = search(-1, obs, new Date(now), 1.2);
   const dawn = search(1, obs, new Date(now), 1.2);
-  if (dawn !== null && (dusk === null || dawn < dusk)) return { dark: { from: now, to: dawn } };
+  if (dawn !== null && (dusk === null || dawn < dusk)) return { dark: { from: now, to: dawn }, startsNow: true };
   if (dusk !== null) {
     const next = search(1, obs, new Date(dusk), 1.2);
-    return next !== null ? { dark: { from: dusk, to: next } } : { dark: { from: dusk, to: dusk + 12 * HOUR }, polar: 'polar-night' };
+    return next !== null ? { dark: { from: dusk, to: next }, startsNow: false } : { dark: { from: dusk, to: dusk + 12 * HOUR }, polar: 'polar-night', startsNow: false };
   }
-  // Neither within a day: the Sun stays up, or stays down.
-  return altAz(Body.Sun, now, obs).altitude >= DUSK_ALT ? { dark: null, polar: 'midnight-sun' } : { dark: { from: now, to: now + 12 * HOUR }, polar: 'polar-night' };
+  // Neither within a day: the Sun stays down (polar night), or never gets 6° down. Then tell the
+  // midnight sun (never sets) from a white night (sets, but the sky stays bright).
+  if (altAz(Body.Sun, now, obs).altitude < DUSK_ALT) return { dark: { from: now, to: now + 12 * HOUR }, polar: 'polar-night', startsNow: true };
+  let lowest = 90;
+  for (let ms = now; ms < now + 24 * HOUR; ms += 20 * 60_000) lowest = Math.min(lowest, altAz(Body.Sun, ms, obs).altitude);
+  return { dark: null, polar: lowest > 0 ? 'midnight-sun' : 'white-night', startsNow: false };
 }
 
-function track(id: PlanetId | 'moon', body: Body, name: string, dark: { from: number; to: number }, sunAlts: Map<number, number>, obs: Observer): SkyObject | null {
+/** The object over the night, or why not: never clear of the horizon after dusk, or only in a sky too bright for it. */
+function track(id: PlanetId | 'moon', body: Body, name: string, dark: { from: number; to: number }, sunAlts: Map<number, number>, obs: Observer): SkyObject | 'washed-out' | null {
   // Brightness hardly changes over a night: take it mid-window.
   const magnitude = Illumination(body, new Date((dark.from + dark.to) / 2)).mag;
   const limit = sunLimit(magnitude);
   let from: number | null = null, to = 0;
   let best: SkyObject['best'] | null = null;
   let firstDark: number | null = null, lastDark = 0;
+  let upInTwilight = false;
   for (const [ms, sun] of sunAlts) {
-    if (sun >= limit) continue;
+    const h = sun < DUSK_ALT ? altAz(body, ms, obs) : null;
+    if (sun >= limit) {
+      if (h && h.altitude >= MIN_ALT) upInTwilight = true;
+      continue;
+    }
     firstDark ??= ms;
     lastDark = ms;
-    const h = altAz(body, ms, obs);
-    if (h.altitude < MIN_ALT) continue;
+    if (!h || h.altitude < MIN_ALT) continue;
     from ??= ms;
     to = ms;
     if (!best || h.altitude > best.altitude) best = { ms, altitude: h.altitude, azimuth: h.azimuth };
   }
-  if (from === null || !best) return null;
+  if (from === null || !best) return upInTwilight ? 'washed-out' : null;
   return { id, name, magnitude, from, to, best, fromDark: from === firstDark, untilDawn: to === lastDark, needsOptics: magnitude > OPTICS_MAG };
 }
 
 export function tonightSky(now: number, place: Place): Tonight {
   const obs = new Observer(place.latitude, place.longitude, 0);
-  const { dark, polar } = darkWindow(now, obs);
+  const { dark, polar, startsNow } = darkWindow(now, obs);
   // The Moon as it will be this evening, not at the moment of asking.
   const moon = moonAt(dark ? dark.from : now);
-  if (!dark) return { dark, polar, visible: [], optics: [], hidden: PLANETS.map(([id]) => planetById(id).name), moon };
+  if (!dark) return { dark, polar, startsNow, visible: [], optics: [], hidden: [], washedOut: [], moon };
 
   // The Sun's altitude on a 10-minute grid, so times read 22:50 rather than 22:43.
   const sunAlts = new Map<number, number>();
   for (let ms = Math.ceil(dark.from / STEP) * STEP; ms <= dark.to; ms += STEP) sunAlts.set(ms, altAz(Body.Sun, ms, obs).altitude);
 
   const seen: SkyObject[] = [];
-  const hidden: string[] = [];
+  const hidden: string[] = [], washedOut: string[] = [];
   const m = track('moon', Body.Moon, 'Moon', dark, sunAlts, obs);
-  if (m) seen.push(m);
+  if (m && m !== 'washed-out') seen.push(m);
   for (const [id, body] of PLANETS) {
     const o = track(id, body, planetById(id).name, dark, sunAlts, obs);
-    if (o) seen.push(o);
-    else hidden.push(planetById(id).name);
+    if (o && o !== 'washed-out') seen.push(o);
+    // Uranus and Neptune can't be seen by eye anyway, so they aren't listed as missing.
+    else if (id === 'uranus' || id === 'neptune') continue;
+    else (o === 'washed-out' ? washedOut : hidden).push(planetById(id).name);
   }
   // Moon first, then brightest first.
   seen.sort((a, b) => (a.id === 'moon' ? -1 : b.id === 'moon' ? 1 : a.magnitude - b.magnitude));
-  return { dark, polar, visible: seen.filter((o) => !o.needsOptics), optics: seen.filter((o) => o.needsOptics), hidden, moon };
+  return { dark, polar, startsNow, visible: seen.filter((o) => !o.needsOptics), optics: seen.filter((o) => o.needsOptics), hidden, washedOut, moon };
 }
 
 /** The Moon's phase name and how much of it is lit at a moment. */
@@ -165,16 +183,26 @@ export function brightness(mag: number): string {
 
 /**
  * One line on when and where to look: "Visible from 22:50 until dawn; highest around 04:00, halfway up
- * in the south." `time` formats a moment in the reader's time zone.
+ * in the south." `time` formats a moment in the reader's time zone. When the window starts now
+ * (already dark) it says "now" rather than "dusk"; in polar night, with no dusk or dawn, it gives times.
  */
-export function whenAndWhere(o: SkyObject, time: (ms: number) => string): string {
-  const start = o.fromDark ? (sunLimit(o.magnitude) === DUSK_ALT ? 'dusk' : 'nightfall') : time(o.from);
+export function whenAndWhere(o: SkyObject, time: (ms: number) => string, night: Pick<Tonight, 'startsNow' | 'polar'>): string {
+  const where = `${height(o.best.altitude)} in the ${compass(o.best.azimuth)}`;
+  if (o.to - o.from < 2 * STEP) return `Visible briefly around ${time(o.from)}, ${where}.`;
+  const polar = night.polar === 'polar-night';
+  // Up when the window opened: "now" if it opened at the moment asked, else dusk (or nightfall,
+  // for the fainter objects that wait for a darker sky).
+  const start = !o.fromDark ? time(o.from) : night.startsNow ? 'now' : polar ? time(o.from) : sunLimit(o.magnitude) === DUSK_ALT ? 'dusk' : 'nightfall';
+  const end = o.untilDawn && !polar ? 'dawn' : time(o.to);
   const span =
-    o.to - o.from < 2 * STEP ? `Visible briefly around ${time(o.from)}`
-    : o.fromDark && o.untilDawn ? 'Visible all night'
-    : `Visible from ${start} ${o.untilDawn ? 'until dawn' : `to ${time(o.to)}`}`;
-  const at = o.best.ms === o.from && o.fromDark ? `highest at ${start}` : o.best.ms === o.to && o.untilDawn ? 'highest before dawn' : `highest around ${time(o.best.ms)}`;
-  return o.to - o.from < 2 * STEP ? `${span}, ${height(o.best.altitude)} in the ${compass(o.best.azimuth)}.` : `${span}; ${at}, ${height(o.best.altitude)} in the ${compass(o.best.azimuth)}.`;
+    o.fromDark && o.untilDawn && !night.startsNow && !polar ? 'Visible all night'
+    : start === 'now' ? `Visible now until ${end}`
+    : `Visible from ${start} ${end === 'dawn' ? 'until dawn' : `to ${end}`}`;
+  const at =
+    o.best.ms === o.from && o.fromDark ? (start === 'now' ? 'highest now' : `highest at ${start}`)
+    : o.best.ms === o.to && o.untilDawn && !polar ? 'highest before dawn'
+    : `highest around ${time(o.best.ms)}`;
+  return `${span}; ${at}, ${where}.`;
 }
 
 /** Round a location to 0.1° (about 10 km): plenty for the sky, and kinder to privacy. */

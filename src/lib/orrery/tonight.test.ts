@@ -3,6 +3,8 @@ import { brightness, compass, height, roundPlace, sunLimit, tonightSky, whenAndW
 
 const LONDON = { latitude: 51.5, longitude: -0.1 };
 
+const hhmm = (ms: number) => new Date(ms).toISOString().slice(11, 16);
+
 describe('tonightSky', () => {
   // Saturn was at opposition on 4 October 2026, so ten days later it is up all evening and highest
   // in the south around midnight; Jupiter and Mars are in the morning sky.
@@ -30,10 +32,9 @@ describe('tonightSky', () => {
   });
 
   it('says when and where to look in words', () => {
-    const hhmm = (ms: number) => new Date(ms).toISOString().slice(11, 16);
-    expect(whenAndWhere(by('Saturn')!, hhmm)).toMatch(/^Visible from nightfall to 0[34]:\d0; highest around 2[23]:\d0, halfway up in the south\.$/);
+    expect(whenAndWhere(by('Saturn')!, hhmm, sky)).toMatch(/^Visible from nightfall to 0[34]:\d0; highest around 2[23]:\d0, halfway up in the south\.$/);
     // Jupiter rises after midnight and is still climbing when dawn hides it.
-    expect(whenAndWhere(by('Jupiter')!, hhmm)).toMatch(/^Visible from 0[12]:\d0 until dawn; highest before dawn, halfway up in the south-east\.$/);
+    expect(whenAndWhere(by('Jupiter')!, hhmm, sky)).toMatch(/^Visible from 0[12]:\d0 until dawn; highest before dawn, halfway up in the south-east\.$/);
   });
 
   it('needs a darker sky for fainter planets', () => {
@@ -70,6 +71,30 @@ describe('tonightSky', () => {
   it('has Saturn in the north from Sydney', () => {
     const s = tonightSky(Date.parse('2026-10-15T02:00Z'), { latitude: -33.9, longitude: 151.2 }).visible.find((o) => o.name === 'Saturn')!;
     expect(compass(s.best.azimuth)).toBe('north');
+  });
+
+  it('says "now", not "all night", when asked after dark', () => {
+    const late = tonightSky(Date.parse('2026-10-15T23:00Z'), LONDON);
+    expect(late.startsNow).toBe(true);
+    const saturn = late.visible.find((o) => o.name === 'Saturn')!;
+    expect(whenAndWhere(saturn, hhmm, late)).toMatch(/^Visible now until 0[34]:\d0; highest now, halfway up in the south\.$/);
+  });
+
+  it('names planets washed out by a bright sky apart from those simply not up', () => {
+    // A London June night is short and never fully dark.
+    const june = tonightSky(Date.parse('2026-06-21T12:00Z'), LONDON);
+    expect(june.washedOut.length + june.hidden.length).toBeGreaterThan(0);
+    expect([...june.washedOut, ...june.hidden]).not.toContain('Uranus');
+  });
+
+  it('tells a white night from the midnight sun', () => {
+    expect(tonightSky(Date.parse('2026-06-21T12:00Z'), { latitude: 64.1, longitude: -21.9 }).polar).toBe('white-night');
+  });
+
+  it('gives times, not dusk and dawn, in polar night', () => {
+    const t = tonightSky(Date.parse('2026-12-21T12:00Z'), { latitude: 78.2, longitude: 15.6 });
+    expect(t.polar).toBe('polar-night');
+    for (const o of t.visible) expect(whenAndWhere(o, hhmm, t)).not.toMatch(/dusk|dawn|all night|nightfall/);
   });
 
   it('knows the midnight sun', () => {
