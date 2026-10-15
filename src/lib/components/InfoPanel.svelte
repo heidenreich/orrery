@@ -667,7 +667,8 @@
       overflow: hidden;
     }
 
-    .panel.folded > :not(header) {
+    /* :global, so it also folds the cards that are their own components (Tonight's sky, Today, Coming up). */
+    .panel.folded > :global(:not(header)) {
       display: none;
     }
 

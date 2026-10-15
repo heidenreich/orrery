@@ -433,6 +433,9 @@ test.describe('on a phone', () => {
     const table = page.getByTestId('worlds');
     await expect(panel(page).getByRole('heading', { name: 'Pick a world' })).toBeVisible();
     await expect(table).toBeHidden();
+    // The cards that are components of their own fold too.
+    await expect(page.getByTestId('tonight')).toBeHidden();
+    await expect(page.getByTestId('today')).toBeHidden();
 
     const show = page.getByRole('button', { name: 'Show worlds' });
     await expect(show).toHaveAttribute('aria-expanded', 'false');
@@ -440,6 +443,7 @@ test.describe('on a phone', () => {
     await expect(table).toBeVisible();
     await page.getByRole('button', { name: 'Hide' }).click();
     await expect(table).toBeHidden();
+    await expect(page.getByTestId('tonight')).toBeHidden();
 
     await page.locator('select[name="world"]').selectOption({ label: 'Mars' });
     await expect(panel(page)).toContainText('Curiosity weather report');
