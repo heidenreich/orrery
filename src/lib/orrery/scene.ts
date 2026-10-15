@@ -334,8 +334,12 @@ export class OrreryScene {
     }
     if (id === null) this.desiredDist = this.overviewDistance();
     else if (id === 'sun') this.desiredDist = 16 * this.bodyScale;
-    // Closer in for a spacecraft with a model, so the model fills the view.
-    else if (isCraftId(id)) this.desiredDist = (craftById(id).model ? 6 : 14) * this.bodyScale;
+    // Closer in for a spacecraft with a model, so the model fills the view (a little further back for
+    // a model drawn larger, so its arrays fit too).
+    else if (isCraftId(id)) {
+      const m = craftById(id).model;
+      this.desiredDist = (m ? 6 * Math.sqrt(m.scale ?? 1) : 14) * this.bodyScale;
+    }
     else this.desiredDist = this.closeUpDistance(this.node(id));
   }
 
@@ -392,7 +396,7 @@ export class OrreryScene {
     if (!id || !model || !url || this.shownModel) return;
     let load = this.models.get(model.file);
     if (!load) {
-      load = this.loadModel(url);
+      load = this.loadModel(url, model.scale ?? 1);
       this.models.set(model.file, load);
     }
     load.then((source) => {
@@ -405,7 +409,7 @@ export class OrreryScene {
     });
   }
 
-  private loadModel(url: string): Promise<THREE.Object3D | null> {
+  private loadModel(url: string, scale: number): Promise<THREE.Object3D | null> {
     this.gltf ??= Promise.all([import('three/addons/loaders/GLTFLoader.js'), import('three/addons/loaders/DRACOLoader.js')]).then(
       ([{ GLTFLoader }, { DRACOLoader }]) => {
         const draco = new DRACOLoader();
@@ -422,7 +426,7 @@ export class OrreryScene {
         inner.position.sub(box.getCenter(new THREE.Vector3()));
         const holder = new THREE.Group();
         holder.add(inner);
-        holder.userData.unitScale = MODEL_SIZE / Math.max(...box.getSize(new THREE.Vector3()).toArray());
+        holder.userData.unitScale = (MODEL_SIZE * scale) / Math.max(...box.getSize(new THREE.Vector3()).toArray());
         // Without an environment map, fully metallic surfaces render nearly black; tone them down.
         inner.traverse((o) => {
           const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
@@ -848,8 +852,8 @@ export class OrreryScene {
         }
         p = c.marker.position.clone();
         if (this.shownModel?.id === id && this.shownModel.object.visible) {
-          // Above the model, which has a size in the scene like a planet.
-          p.y += MODEL_SIZE * this.bodyScale * 0.6;
+          // Just above the model as it is turned now, which has a size in the scene like a planet.
+          p.y = new THREE.Box3().setFromObject(this.shownModel.object).max.y + 0.1 * MODEL_SIZE * this.bodyScale;
         } else {
           // Markers are a fixed size on screen, so lift their labels by pixels rather than distance.
           lift = 8;

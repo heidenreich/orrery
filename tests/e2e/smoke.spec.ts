@@ -44,13 +44,17 @@ function craftSample(): string {
     parker.p.push(0.2 * Math.cos(a), 0.2 * Math.sin(a), 0);
     parker.v.push(-0.2 * w * Math.sin(a), 0.2 * w * Math.cos(a), 0);
   }
+  const still = (x: number, y: number, z: number, n: number) => ({ p: Array.from({ length: n }, () => [x, y, z]).flat(), v: Array(n * 3).fill(0) });
   const fetchedAt = new Date().toISOString();
   return JSON.stringify({
     version: 1,
     generatedAt: fetchedAt,
     craft: [
       { id: 'voyager-1', source: 'live', fetchedAt, start: new Date(start).toISOString(), stepMs: 60 * DAY, ...v1 },
-      { id: 'parker', source: 'live', fetchedAt, start: new Date(Date.now() - 20 * DAY).toISOString(), stepMs: DAY, ...parker }
+      { id: 'parker', source: 'live', fetchedAt, start: new Date(Date.now() - 20 * DAY).toISOString(), stepMs: DAY, ...parker },
+      // Two parked craft, so the menu lists them and their models can be loaded.
+      { id: 'new-horizons', source: 'live', fetchedAt, start: new Date(start).toISOString(), stepMs: 60 * DAY, ...still(-20, 55, 2, 15) },
+      { id: 'europa-clipper', source: 'live', fetchedAt, start: new Date(start).toISOString(), stepMs: 60 * DAY, ...still(2.2, -1.5, 0, 15) }
     ],
     missing: []
   });
@@ -534,7 +538,7 @@ test('spacecraft appear in the World menu and open a panel with distance, signal
   const errors = trackErrors(page);
   await page.goto('/');
   const world = page.getByRole('combobox', { name: 'World' });
-  await expect(world.locator('optgroup[label="Spacecraft"] option')).toHaveText(['Voyager 1', 'Parker Solar Probe']);
+  await expect(world.locator('optgroup[label="Spacecraft"] option')).toHaveText(['Voyager 1', 'Parker Solar Probe', 'New Horizons', 'Europa Clipper']);
 
   await world.selectOption({ label: 'Voyager 1' });
   const p = panel(page);
@@ -593,6 +597,7 @@ test('a spacecraft on an Earth flyby shows its distance from Earth as approximat
   const e = planetPosition('earth', Date.now());
   const at = [e.x + 0.01, e.y, e.z];
   const d = JSON.parse(craftSample());
+  d.craft = d.craft.filter((t: { id: string }) => t.id !== 'europa-clipper');
   d.craft.push({ id: 'europa-clipper', source: 'live', fetchedAt: d.generatedAt, start: new Date(Date.now() - DAY).toISOString(), stepMs: 2 * DAY, p: [...at, ...at], v: [0, 0, 0, 0, 0, 0] });
   await page.route(CRAFT_DATA, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
   await page.goto('/');
@@ -657,7 +662,9 @@ test('planets show their moons, labelled while the planet is selected', async ({
   expect(errors).toEqual([]);
 });
 
-test('Voyager and Parker load their NASA 3D models only when selected', async ({ page }) => {
+test('spacecraft load their NASA 3D models only when selected', async ({ page }) => {
+  // Four models, decoded and drawn by the software renderer the tests use.
+  test.setTimeout(90_000);
   const errors = trackErrors(page);
   const fetched: string[] = [];
   page.on('response', (r) => r.ok() && /\/(models|draco)\//.test(r.url()) && fetched.push(r.url().split('/').slice(-2).join('/')));
@@ -673,6 +680,13 @@ test('Voyager and Parker load their NASA 3D models only when selected', async ({
   await page.getByRole('combobox', { name: 'World' }).selectOption({ label: 'Parker Solar Probe' });
   await expect.poll(() => fetched).toContain('models/parker.glb');
   await expect(panel(page)).toContainText('heat shield to the Sun');
+
+  for (const [label, file] of [['New Horizons', 'new-horizons'], ['Europa Clipper', 'europa-clipper']]) {
+    await page.getByRole('combobox', { name: 'World' }).selectOption({ label });
+    await expect.poll(() => fetched).toContain(`models/${file}.glb`);
+    await expect(panel(page)).toContainText('3D model from NASA Science (NASA VTAD)');
+    await expect(panel(page)).toContainText('dish to Earth');
+  }
   expect(errors).toEqual([]);
 });
 

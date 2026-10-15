@@ -1,7 +1,16 @@
-Spacecraft models in this folder:
-voyager.glb  "Voyager Probe (A)", used for both Voyager 1 and Voyager 2
-parker.glb   "Parker Solar Probe"
-From NASA 3D Resources (https://github.com/nasa/NASA-3D-Resources),
-which describes its assets as "free and without copyright". Credit: NASA. Use follows NASA's media
-guidelines (https://www.nasa.gov/nasa-brand-center/images-and-media); no NASA endorsement is implied.
-Files are unchanged from the source.
+Spacecraft models in this folder, all credit NASA:
+
+voyager.glb         "Voyager Probe (A)", used for both Voyager 1 and Voyager 2
+parker.glb          "Parker Solar Probe"
+  From NASA 3D Resources (https://github.com/nasa/NASA-3D-Resources), which describes its assets
+  as "free and without copyright". Files are unchanged from the source.
+
+new-horizons.glb    "New Horizons 3D Model", https://science.nasa.gov/resource/new-horizons-3d-model/
+europa-clipper.glb  "Europa Clipper 3D Model", https://science.nasa.gov/resource/europa-clipper-3d-model/
+  Credit: NASA Visualization Technology Applications and Development (VTAD). Downloaded from NASA
+  Science's 3D resources and made smaller for the web with glTF Transform (Draco-compressed
+  geometry, WebP textures at most 1024 px, meshes simplified to about half): 3.3 MB to 0.19 MB and
+  35.7 MB to 1.3 MB.
+
+Use follows NASA's media guidelines (https://www.nasa.gov/nasa-brand-center/images-and-media); no
+NASA endorsement is implied.
