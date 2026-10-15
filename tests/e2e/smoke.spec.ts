@@ -437,7 +437,7 @@ test.describe('on a phone', () => {
     await expect(page.getByTestId('tonight')).toBeHidden();
     await expect(page.getByTestId('today')).toBeHidden();
 
-    const show = page.getByRole('button', { name: 'Show worlds' });
+    const show = page.getByRole('button', { name: 'Show more' });
     await expect(show).toHaveAttribute('aria-expanded', 'false');
     await show.click();
     await expect(table).toBeVisible();
@@ -460,7 +460,7 @@ test.describe('on a phone', () => {
 test('on wider screens the panel never folds', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('worlds')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Show worlds' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Show more' })).toBeHidden();
 });
 
 test('planet panels show physical facts, moons, rings and missions', async ({ page }) => {

@@ -200,7 +200,7 @@
 
   li {
     display: grid;
-    grid-template-columns: 6.5em 1fr;
+    grid-template-columns: 5.4em 1fr;
     align-items: start;
     gap: 8px;
     font-size: 13px;

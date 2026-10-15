@@ -212,7 +212,7 @@
         <p class="eyebrow">Solar system</p>
         <h2>Pick a world</h2>
       </div>
-      {@render fold('worlds')}
+      {@render fold('more')}
     </header>
     <p>
       Where every planet is, how far away and what season it is, for the date shown. Choose a world from
