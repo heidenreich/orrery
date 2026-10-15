@@ -58,6 +58,16 @@
       : 'Simulated'
   );
 
+  // Picking a coming-up event: pause the clock there and select what it is about.
+  let jumpTo: { ms: number } | null = $state(null);
+  function jump(ms: number, focus: WorldId | null) {
+    playing = false;
+    jumpTo = { ms };
+    simMs = ms;
+    positions = planetPositions(ms);
+    if (focus) selected = focus;
+  }
+
   function goLive() {
     daysPerSec = REAL_TIME;
     playing = true;
@@ -136,6 +146,7 @@
   {daysPerSec}
   {scale}
   {resetToNow}
+  {jumpTo}
   onselect={(id) => (selected = id)}
   onlimit={() => (playing = false)}
   ontick={(ms, pos) => {
@@ -168,7 +179,7 @@
   {/if}
 </div>
 
-<InfoPanel {selected} {simMs} {positions} {weather} {spacecraft} {now} onclose={closePanel} onselect={(id) => (selected = id)} />
+<InfoPanel {selected} {simMs} {positions} {weather} {spacecraft} {now} onclose={closePanel} onselect={(id) => (selected = id)} onjump={jump} />
 
 <div class="controls surface" role="toolbar" aria-label="Time and view controls" data-label-avoid bind:offsetHeight={toolbarHeight}>
   <select

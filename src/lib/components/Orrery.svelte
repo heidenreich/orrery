@@ -16,13 +16,15 @@
     scale: ScaleMode;
     /** Bump to jump the clock back to the current date. */
     resetToNow: number;
+    /** Set the clock to this moment (a new object each time). */
+    jumpTo: { ms: number } | null;
     onselect: (id: WorldId) => void;
     ontick: (simMs: number, positions: PositionsAU) => void;
     /** Playback reached the earliest or latest supported date and stopped. */
     onlimit: () => void;
   }
 
-  let { selected, spacecraft, playing, daysPerSec, scale, resetToNow, onselect, ontick, onlimit }: Props = $props();
+  let { selected, spacecraft, playing, daysPerSec, scale, resetToNow, jumpTo, onselect, ontick, onlimit }: Props = $props();
 
   // Solar System Scope maps (CC BY 4.0, see static/textures/LICENSE.txt). Venus keeps its drawn
   // cloud texture: the only Venus map shows the radar surface, which is always hidden by cloud.
@@ -95,6 +97,9 @@
   });
   $effect(() => {
     if (scene && resetToNow) scene.simMs = Date.now();
+  });
+  $effect(() => {
+    if (scene && jumpTo) scene.simMs = jumpTo.ms;
   });
 </script>
 

@@ -85,6 +85,8 @@ src/
   lib/data/spacecraft-data.ts  Builds, checks and interpolates the spacecraft data file
   lib/orrery/craft.ts       The spacecraft shown, with their Horizons IDs and trajectory windows
   lib/orrery/moons.ts       The Moon, Jupiter's four large moons (Astronomy Engine), Titan and Triton (Horizons)
+  lib/orrery/events.ts      Coming-up events: moon phases, eclipses, seasons, oppositions, elongations, meteor showers, flybys
+  lib/orrery/today.ts       The "Solar system today" summary lines
   lib/data/weather-data.ts  Builds the data file, with fallback to the last good copy
   lib/data/weather.ts       Loads the data file in the browser
   lib/data/fetch-json.ts    Fetch with timeout and console logging

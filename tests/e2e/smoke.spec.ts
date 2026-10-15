@@ -88,7 +88,7 @@ test('renders the solar system and opens the Mars panel', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.locator('.stage canvas')).toBeVisible();
-  await expect(labels(page).getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
+  await expect(labels(page).getByRole('button', { name: 'Sun', exact: true })).toBeVisible();
   await expect(panel(page)).toContainText('From Earth');
 
   await select(page, 'Mars');
@@ -353,7 +353,7 @@ test('planet labels stay clear of the header, panel and toolbar', async ({ page 
   for (const size of [{ width: 1400, height: 860 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(size);
     await page.goto('/');
-    await expect(labels(page).getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
+    await expect(labels(page).getByRole('button', { name: 'Sun', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Pause' }).click();
     await page.waitForTimeout(500);
     const overlaps = await page.evaluate(() => {
@@ -564,7 +564,7 @@ test('without spacecraft data the orrery still works and the menu lists no space
   const thrown: string[] = [];
   page.on('pageerror', (e) => thrown.push(e.message));
   await page.goto('/');
-  await expect(labels(page).getByRole('button', { name: 'Mars', exact: true })).toBeVisible();
+  await expect(labels(page).getByRole('button', { name: 'Sun', exact: true })).toBeVisible();
   await expect(page.locator('optgroup[label="Spacecraft"]')).toHaveCount(0);
   expect(thrown).toEqual([]);
 });
@@ -668,5 +668,30 @@ test('Voyager and Parker load their NASA 3D models only when selected', async ({
   await page.getByRole('combobox', { name: 'World' }).selectOption({ label: 'Parker Solar Probe' });
   await expect.poll(() => fetched).toContain('models/parker.glb');
   await expect(panel(page)).toContainText('heat shield to the Sun');
+  expect(errors).toEqual([]);
+});
+
+test('the overview sums up the solar system today and lists what is coming up', async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto('/');
+  const today = page.getByTestId('today');
+  await expect(today).toContainText(/Sun\s*Small C-class flares \(C1\.\d\) · solar wind \d+ km\/s/);
+  await expect(today).toContainText(/Earth\s*Kp 3\.3, unsettled: auroras at high latitudes/);
+  await expect(today).toContainText(/Moon\s*(New moon|Waxing|First|Full|Waning|Last)[^,]*, \d+% lit/);
+  await expect(today).toContainText(/Mars\s*−71 °C to −5 °C at Gale Crater/);
+  await expect(today).toContainText(/Voyager 1\s*\d+ h \d+ min away at the speed of light/);
+  await today.getByRole('button', { name: 'Mars' }).click();
+  await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  const coming = page.getByTestId('coming-up');
+  await expect(coming.locator('li')).toHaveCount(6);
+  const first = coming.locator('li button').first();
+  const label = (await first.getAttribute('aria-label'))!;
+  await first.click();
+  // The clock jumps to the event and pauses; the status shows a simulated date.
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+  await expect(page.getByText('Paused')).toBeVisible();
+  expect(label).toMatch(/set the clock to then/);
   expect(errors).toEqual([]);
 });

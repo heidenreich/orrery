@@ -2,7 +2,9 @@
   import { tick } from 'svelte';
   import MarsHistory from '$lib/components/MarsHistory.svelte';
   import FlareCard from '$lib/components/FlareCard.svelte';
+  import ComingUp from '$lib/components/ComingUp.svelte';
   import KpCard from '$lib/components/KpCard.svelte';
+  import TodayCard from '$lib/components/TodayCard.svelte';
   import SolarWindCard from '$lib/components/SolarWindCard.svelte';
   import SunAndSeasons from '$lib/components/SunAndSeasons.svelte';
   import { ago, celsius, km, lightTime, seasonWords } from '$lib/format';
@@ -28,10 +30,12 @@
     now: number;
     /** `fromKeyboard`: closed with Enter or Space rather than a click or tap. */
     onclose: (fromKeyboard: boolean) => void;
-    onselect: (id: BodyId) => void;
+    onselect: (id: WorldId) => void;
+    /** Set the clock to a moment (and select what it is about). */
+    onjump: (ms: number, focus: WorldId | null) => void;
   }
 
-  let { selected, simMs, positions, weather, spacecraft, now, onclose, onselect }: Props = $props();
+  let { selected, simMs, positions, weather, spacecraft, now, onclose, onselect, onjump }: Props = $props();
 
   const report = $derived(weather?.mars.report ?? STORED_MARS_REPORT);
   // Show the feed's wording in sentence case, with any underscores as spaces.
@@ -212,6 +216,7 @@
       shown. Three worlds have live data: the solar wind at the Sun, space
       weather and auroras at Earth, and the latest weather report from NASA's Curiosity rover on Mars.
     </p>
+    <TodayCard {weather} {spacecraft} {now} {onselect} />
     <table class="worlds" data-testid="worlds">
       <caption class="eyebrow">Worlds right now</caption>
       <thead>
@@ -227,6 +232,9 @@
         {/each}
       </tbody>
     </table>
+    {#if simMs !== null}
+      <ComingUp {simMs} {spacecraft} {onjump} />
+    {/if}
     <p class="hint">Choose a world here, from the World menu, or by clicking it. Drag to rotate, scroll or pinch to zoom.</p>
     <p class="credit" data-testid="texture-credit">
       Planet, Moon and Sun images by <a href="https://www.solarsystemscope.com/textures/" rel="noopener" target="_blank">Solar System Scope</a>,
