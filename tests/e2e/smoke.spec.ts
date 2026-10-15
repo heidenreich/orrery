@@ -374,8 +374,8 @@ test('the overview lists every world, and each row opens it', async ({ page }) =
   const table = page.getByTestId('worlds');
   await expect(table.locator('tbody tr')).toHaveCount(9);
   await expect(table).toContainText(/Saturn\s*\d+\.\d+ AU\s*Northern (spring|summer|autumn|winter)/);
-  await expect(table).toContainText(/Jupiter\s*\d+\.\d+ AU\s*No seasons/);
-  await expect(table).toContainText(/Sun\s*\d\.\d+ AU\s*Wind \d+ km\/s/);
+  await expect(table).toContainText(/Jupiter\s*\d+\.\d+ AU\s*No real seasons/);
+  await expect(table).toContainText(/Sun\s*\d\.\d+ AU\s*—/);
   await expect(panel(page)).not.toContainText('Mars right now');
 
   await table.getByRole('button', { name: 'Saturn' }).click();
@@ -488,7 +488,8 @@ test('Earth shows live space weather: Kp, storm level, a 3-day chart and where a
   await expect(card).toContainText(/Kp 3\.3\s*Unsettled/);
   await expect(card).toContainText('Peak: Kp 5.3');
   await expect(card.locator('rect')).toHaveCount(24);
-  await expect(card.locator('rect.storm')).toHaveCount(2);
+  // Two readings of 5.3 and one of 4.67 (5−), which NOAA counts as Kp 5, a G1 storm.
+  await expect(card.locator('rect.storm')).toHaveCount(3);
   await expect(card).toContainText('Iceland');
   await expect(card).toContainText(/Covers\s*\d+ \w+, \d\d:\d\d–\d\d:\d\d UTC/);
   expect(errors).toEqual([]);
@@ -677,15 +678,16 @@ test('the overview sums up the solar system today and lists what is coming up', 
   const today = page.getByTestId('today');
   await expect(today).toContainText(/Sun\s*Small C-class flares \(C1\.\d\) · solar wind \d+ km\/s/);
   await expect(today).toContainText(/Earth\s*Kp 3\.3, unsettled: auroras at high latitudes/);
-  await expect(today).toContainText(/Moon\s*(New moon|Waxing|First|Full|Waning|Last)[^,]*, \d+% lit/);
+  await expect(page.getByTestId('tonight')).toContainText(/Tonight’s Moon: (new moon|waxing|first|full|waning|last)[^,]*, \d+% lit/);
+  await expect(page.getByTestId('today-age')).toContainText('updated hourly');
   await expect(today).toContainText(/Mars\s*−71 °C to −5 °C at Gale Crater/);
-  await expect(today).toContainText(/Voyager 1\s*\d+ h \d+ min away at the speed of light/);
+  await expect(today).toContainText(/Voyager 1\s*[\d.]+ billion km from Earth; a radio signal takes \d+ h \d+ min to reach it/);
   await today.getByRole('button', { name: 'Mars' }).click();
   await expect(panel(page).getByRole('heading', { name: 'Mars' })).toBeVisible();
   await page.keyboard.press('Escape');
 
   const coming = page.getByTestId('coming-up');
-  await expect(coming.locator('li')).toHaveCount(6);
+  await expect(coming.locator('li')).toHaveCount(3);
   const first = coming.locator('li button').first();
   const label = (await first.getAttribute('aria-label'))!;
   await first.click();
@@ -705,7 +707,7 @@ test('tonight’s sky uses the browser location, remembers it and lists what is 
   await tonight.getByRole('button', { name: 'Use my location' }).click();
   // Rounded to 0.1° before it is shown or stored.
   await expect(tonight.getByText('Tonight’s sky · 51.5° N, 0.1° W')).toBeVisible();
-  await expect(tonight).toContainText(/Dark (now until|from)/);
+  await expect(tonight).toContainText(/Bright planets show (now|from)/);
   await page.reload();
   await expect(tonight.getByText('Tonight’s sky · 51.5° N, 0.1° W')).toBeVisible();
   await tonight.getByRole('button', { name: 'Change place' }).click();

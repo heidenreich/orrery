@@ -81,16 +81,14 @@
     if (!positions || simMs === null) return [];
     const earth = positions.earth;
     return ALL_BODIES.map((b) => {
-      if (b.id === 'sun') {
-        const wind = weather?.solarWind.summary?.latest.speed;
-        return { id: b.id, name: b.name, from: fmtAU(length(earth)), now: wind != null ? `Wind ${Math.round(wind)} km/s` : '—' };
-      }
+      // The table follows the clock, so it shows no live readings (those are in "Solar system today").
+      if (b.id === 'sun') return { id: b.id, name: b.name, from: fmtAU(length(earth)), now: '—' };
       const season = northSeason(b.id, simMs);
       return {
         id: b.id,
         name: b.name,
         from: b.id === 'earth' ? '—' : fmtAU(distance(positions[b.id], earth)),
-        now: season ? `Northern ${season}` : 'No seasons'
+        now: season ? `Northern ${season}` : 'No real seasons'
       };
     });
   });
@@ -213,16 +211,18 @@
       {@render fold('worlds')}
     </header>
     <p>
-      Where every planet is, how far away, how much sunlight it gets and what season it is, for the date
-      shown. Three worlds have live data: the solar wind at the Sun, space
-      weather and auroras at Earth, and the latest weather report from NASA's Curiosity rover on Mars.
+      Where every planet is, how far away and what season it is, for the date shown. Choose a world from
+      the menu or by clicking it; drag to rotate, scroll or pinch to zoom.
     </p>
-    <TodayCard {weather} {spacecraft} {now} {onselect} />
     <TonightCard {now} {onselect} />
+    <TodayCard {weather} {spacecraft} {now} {onselect} />
+    {#if simMs !== null}
+      <ComingUp {simMs} {spacecraft} {onjump} />
+    {/if}
     <table class="worlds" data-testid="worlds">
-      <caption class="eyebrow">Worlds right now</caption>
+      <caption class="eyebrow">Worlds on {simMs !== null ? fmtDate.format(new Date(simMs)) : 'the date shown'}</caption>
       <thead>
-        <tr><th scope="col">World</th><th scope="col">From Earth</th><th scope="col">Now</th></tr>
+        <tr><th scope="col">World</th><th scope="col">From Earth</th><th scope="col">Season</th></tr>
       </thead>
       <tbody>
         {#each overview as row (row.id)}
@@ -234,10 +234,12 @@
         {/each}
       </tbody>
     </table>
-    {#if simMs !== null}
-      <ComingUp {simMs} {spacecraft} {onjump} />
-    {/if}
-    <p class="hint">Choose a world here, from the World menu, or by clicking it. Drag to rotate, scroll or pinch to zoom.</p>
+    <p class="credit" data-testid="data-credit">
+      Data: space weather from <a href="https://www.swpc.noaa.gov/" rel="noopener" target="_blank">NOAA SWPC</a>, Mars weather from
+      NASA’s Curiosity REMS instrument, spacecraft and moon paths from
+      <a href="https://ssd.jpl.nasa.gov/horizons/" rel="noopener" target="_blank">NASA JPL Horizons</a>, everything else computed with
+      <a href="https://github.com/cosinekitty/astronomy" rel="noopener" target="_blank">Astronomy Engine</a>.
+    </p>
     <p class="credit" data-testid="texture-credit">
       Planet, Moon and Sun images by <a href="https://www.solarsystemscope.com/textures/" rel="noopener" target="_blank">Solar System Scope</a>,
       based on NASA data, under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener" target="_blank">CC BY 4.0</a>.
@@ -502,10 +504,6 @@
     color: var(--sun);
   }
 
-  .hint {
-    font-size: 12.5px;
-    color: var(--ink-dim);
-  }
 
   .credit {
     margin: 0;

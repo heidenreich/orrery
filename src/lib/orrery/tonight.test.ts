@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brightness, compass, height, roundPlace, tonightSky, whenAndWhere } from './tonight';
+import { brightness, compass, height, roundPlace, sunLimit, tonightSky, whenAndWhere } from './tonight';
 
 const LONDON = { latitude: 51.5, longitude: -0.1 };
 
@@ -7,7 +7,7 @@ describe('tonightSky', () => {
   // Saturn was at opposition on 4 October 2026, so ten days later it is up all evening and highest
   // in the south around midnight; Jupiter and Mars are in the morning sky.
   const sky = tonightSky(Date.parse('2026-10-15T12:00Z'), LONDON);
-  const by = (name: string) => sky.visible.find((o) => o.name === name);
+  const by = (name: string) => [...sky.visible, ...sky.optics].find((o) => o.name === name);
 
   it('finds the dark window from civil dusk to dawn', () => {
     // London sunset about 17:05 UTC on 15 October; civil dusk about 35 minutes later.
@@ -31,13 +31,34 @@ describe('tonightSky', () => {
 
   it('says when and where to look in words', () => {
     const hhmm = (ms: number) => new Date(ms).toISOString().slice(11, 16);
-    expect(whenAndWhere(by('Saturn')!, sky.dark!, hhmm)).toMatch(/^Up from 18:\d0 to 0[34]:\d0; highest around 2[23]:\d0, halfway up in the south\.$/);
-    expect(whenAndWhere(by('Jupiter')!, sky.dark!, hhmm)).toMatch(/^Up from 0[12]:\d0 until dawn; highest before dawn, halfway up in the south-east\.$/);
+    expect(whenAndWhere(by('Saturn')!, hhmm)).toMatch(/^Visible from nightfall to 0[34]:\d0; highest around 2[23]:\d0, halfway up in the south\.$/);
+    // Jupiter rises after midnight and is still climbing when dawn hides it.
+    expect(whenAndWhere(by('Jupiter')!, hhmm)).toMatch(/^Visible from 0[12]:\d0 until dawn; highest before dawn, halfway up in the south-east\.$/);
+  });
+
+  it('needs a darker sky for fainter planets', () => {
+    expect(sunLimit(-4)).toBe(-6);
+    expect(sunLimit(0.5)).toBe(-9);
+    expect(sunLimit(5.7)).toBe(-18);
+    // Saturn (magnitude 0.3) shows in nautical twilight; Uranus waits for full darkness.
+    expect(by('Uranus')!.from).toBeGreaterThan(by('Saturn')!.from + 3_600_000);
+  });
+
+  it('puts Uranus and Neptune in the binoculars list, not the naked-eye one', () => {
+    expect(sky.optics.map((o) => o.name)).toEqual(['Uranus', 'Neptune']);
+    expect(sky.visible.map((o) => o.name)).not.toContain('Uranus');
+  });
+
+  it('gives the Moon as it will be at dusk', () => {
+    const noon = tonightSky(Date.parse('2026-10-15T12:00Z'), LONDON).moon.lit;
+    const dusk = tonightSky(Date.parse('2026-10-15T17:42Z'), LONDON).moon.lit;
+    expect(Math.abs(noon - dusk)).toBeLessThanOrEqual(1);
   });
 
   it('lists planets lost in the Sun’s glare as hidden', () => {
     expect(sky.hidden).toContain('Venus');
     expect(by('Neptune')!.needsOptics).toBe(true);
+    expect(by('Saturn')!.needsOptics).toBe(false);
   });
 
   it('starts from now when it is already dark', () => {
@@ -70,7 +91,9 @@ describe('words', () => {
     expect(compass(359)).toBe('north');
     expect(compass(130)).toBe('south-east');
     expect(height(15)).toBe('low');
-    expect(height(70)).toBe('high overhead');
+    expect(height(30)).toBe('halfway up');
+    expect(height(70)).toBe('high');
+    expect(height(80)).toBe('almost overhead');
     expect(brightness(-4.5)).toBe('very bright');
     expect(brightness(7.8)).toBe('needs binoculars');
   });

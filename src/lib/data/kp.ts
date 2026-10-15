@@ -95,8 +95,12 @@ export function summarizeKp(
   return { ok: true, summary: { latest, series } };
 }
 
-/** NOAA geomagnetic storm scale: G1 at Kp 5 up to G5 at Kp 9; 0 below that. */
-export const stormLevel = (kp: number) => (kp >= 5 ? Math.min(5, Math.floor(kp) - 4) : 0);
+/**
+ * NOAA geomagnetic storm scale: G1 at Kp 5 up to G5 at Kp 9; 0 below that. The feed gives Kp in
+ * thirds (4.67 is "5−"), and NOAA counts 5− as Kp 5, so round to the nearest whole step.
+ */
+export const kpStep = (kp: number) => Math.round(kp);
+export const stormLevel = (kp: number) => (kpStep(kp) >= 5 ? Math.min(5, kpStep(kp) - 4) : 0);
 
 const STORM_NAMES = ['', 'minor', 'moderate', 'strong', 'severe', 'extreme'];
 
@@ -104,11 +108,12 @@ const STORM_NAMES = ['', 'minor', 'moderate', 'strong', 'severe', 'extreme'];
 export function kpWords(kp: number): string {
   const g = stormLevel(kp);
   if (g) return `G${g} ${STORM_NAMES[g]} storm`;
-  return kp >= 4 ? 'Active' : kp >= 3 ? 'Unsettled' : 'Quiet';
+  return kpStep(kp) >= 4 ? 'Active' : kpStep(kp) >= 3 ? 'Unsettled' : 'Quiet';
 }
 
 /** Where auroras might be seen, roughly, at this level (they also need a dark, clear sky). */
-export function auroraWords(kp: number): string {
+export function auroraWords(raw: number): string {
+  const kp = kpStep(raw);
   if (kp >= 8) return `${kp >= 9 ? 'An extreme' : 'A severe'} storm: auroras may be seen far from the poles, possibly as far south as the southern United States and southern Europe.`;
   if (kp >= 7) return 'A strong storm: auroras may be seen far from the poles, possibly as far as the central United States and central Europe.';
   if (kp >= 5) return 'Auroras may reach Scotland, southern Scandinavia and the northern United States.';

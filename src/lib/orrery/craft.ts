@@ -86,7 +86,7 @@ export const CRAFT: Craft[] = [
     from: { daysBack: 730 }, daysAhead: 365, step: '1 d',
     about: [
       'ESA’s Jupiter Icy Moons Explorer, due at Jupiter in 2031 to study Ganymede, Callisto and Europa.',
-      'Made the first ever lunar-Earth double flyby in 2024 on its way.'
+      'On its way it flew past the Moon and Earth in August 2024 (the first lunar-Earth double flyby), Venus in August 2025 and Earth again in September 2026.'
     ]
   }
 ];

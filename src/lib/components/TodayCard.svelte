@@ -2,15 +2,18 @@
   import type { SpacecraftData } from '$lib/data/spacecraft-data';
   import type { WeatherData } from '$lib/data/weather-data';
   import type { WorldId } from '$lib/orrery/craft';
-  import { todayLines } from '$lib/orrery/today';
+  import { readingsFetchedAt, todayLines } from '$lib/orrery/today';
+  import { ago } from '$lib/format';
 
   let { weather, spacecraft, now, onselect }: { weather: WeatherData | null; spacecraft: SpacecraftData | null; now: number; onselect: (id: WorldId) => void } =
     $props();
 
-  // Recomputed once a minute: the Moon's phase and Voyager's distance change slowly.
+  // Recomputed once a minute: Voyager's distance changes slowly.
   const minute = $derived(Math.floor(now / 60_000));
   const lines = $derived(todayLines(minute * 60_000, weather, spacecraft));
-  const fmtDay = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  // The reader's own date, not UTC's, which is already tomorrow in Asia and the Pacific.
+  const fmtDay = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const fetched = $derived(readingsFetchedAt(weather));
 </script>
 
 <section class="today" data-testid="today" aria-labelledby="today-heading">
@@ -23,6 +26,9 @@
       </li>
     {/each}
   </ul>
+  {#if fetched}
+    <p class="note" data-testid="today-age">Sun and Earth readings from NOAA, updated hourly; these were fetched {ago(fetched, now)}.</p>
+  {/if}
 </section>
 
 <style>
@@ -69,6 +75,12 @@
   }
 
   span {
+    color: var(--ink-dim);
+  }
+
+  .note {
+    margin: 0;
+    font-size: 12px;
     color: var(--ink-dim);
   }
 </style>

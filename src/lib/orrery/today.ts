@@ -1,12 +1,12 @@
-// "Solar system today": one line per world from the live data and today's geometry. Always about
-// the real now, whatever the clock shows, because the live data is.
+// "Solar system today": one line per world from the latest readings (fetched hourly at build time)
+// and today's geometry. Always about the real now, whatever the clock shows, because the readings
+// are. The Moon's phase is in "Tonight's sky" instead.
 
-import { Body, Illumination, MoonPhase } from 'astronomy-engine';
 import { craftState, type SpacecraftData } from '../data/spacecraft-data';
 import type { WeatherData } from '../data/weather-data';
 import { flareClass } from '../data/xray';
-import { kpWords } from '../data/kp';
-import { celsius, lightTime } from '../format';
+import { kpStep, kpWords } from '../data/kp';
+import { celsius, km, lightTime } from '../format';
 import type { WorldId } from './craft';
 import { planetPosition } from './ephemeris';
 import { distance } from './orbits';
@@ -33,7 +33,7 @@ export function moonPhaseName(angle: number): string {
 const flareLevel = (flux: number) =>
   flux >= 1e-4 ? 'A major X-class flare' : flux >= 1e-5 ? 'An M-class flare' : flux >= 1e-6 ? 'Small C-class flares' : 'Quiet';
 
-const auroraShort = (kp: number) =>
+const auroraShort = (raw: number, kp = kpStep(raw)) =>
   kp >= 7 ? 'auroras possible far from the poles' : kp >= 5 ? 'auroras may reach mid-latitudes' : kp >= 3 ? 'auroras at high latitudes' : 'auroras near the poles only';
 
 export function todayLines(now: number, weather: WeatherData | null, spacecraft: SpacecraftData | null): TodayLine[] {
@@ -46,10 +46,6 @@ export function todayLines(now: number, weather: WeatherData | null, spacecraft:
   const k = weather?.kp.summary;
   if (k) lines.push({ focus: 'earth', label: 'Earth', text: `Kp ${k.latest.kp.toFixed(k.latest.kp % 1 ? 1 : 0)}, ${kpWords(k.latest.kp).toLowerCase()}: ${auroraShort(k.latest.kp)}` });
 
-  const date = new Date(now);
-  const lit = Math.round(Illumination(Body.Moon, date).phase_fraction * 100);
-  lines.push({ focus: 'earth', label: 'Moon', text: `${moonPhaseName(MoonPhase(date))}, ${lit}% lit` });
-
   const r = weather?.mars.report;
   if (r && (r.minTemp !== null || r.maxTemp !== null)) {
     const range = [r.minTemp, r.maxTemp].map((t) => (t === null ? '?' : celsius(t))).join(' to ');
@@ -58,6 +54,16 @@ export function todayLines(now: number, weather: WeatherData | null, spacecraft:
 
   const v1 = spacecraft?.craft.find((t) => t.id === 'voyager-1');
   const s = v1 ? craftState(v1, now) : null;
-  if (s) lines.push({ focus: 'voyager-1', label: 'Voyager 1', text: `${lightTime(distance(s.pos, planetPosition('earth', now)))} away at the speed of light` });
+  if (s) {
+    const d = distance(s.pos, planetPosition('earth', now));
+    lines.push({ focus: 'voyager-1', label: 'Voyager 1', text: `${km(d)} from Earth; a radio signal takes ${lightTime(d)} to reach it` });
+  }
   return lines;
+}
+
+/** When the newest space weather reading was fetched (Mars's report gives its own sol), or null. */
+export function readingsFetchedAt(weather: WeatherData | null): string | null {
+  if (!weather) return null;
+  const times = [weather.xray?.fetchedAt, weather.solarWind.fetchedAt, weather.kp.fetchedAt].filter((t): t is string => !!t);
+  return times.length ? times.sort().at(-1)! : null;
 }

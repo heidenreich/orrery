@@ -6,6 +6,7 @@
 
 import {
   Body,
+  Illumination,
   NextGlobalSolarEclipse,
   NextLunarEclipse,
   NextMoonQuarter,
@@ -44,16 +45,26 @@ const AU_KM = 149_597_870.7;
 
 const ECLIPSE_WORDS: Record<string, string> = { total: 'Total', annular: 'Annular', partial: 'Partial', penumbral: 'Penumbral', hybrid: 'Hybrid' };
 
-/** Meteor shower peaks (IMO calendar), month and day. They vary by about a day from year to year. */
-const SHOWERS: { name: string; month: number; day: number; rate: string }[] = [
-  { name: 'Quadrantids', month: 1, day: 3, rate: 'up to about 80 an hour' },
-  { name: 'Lyrids', month: 4, day: 22, rate: 'about 18 an hour' },
-  { name: 'Eta Aquariids', month: 5, day: 6, rate: 'up to about 50 an hour, best from the south' },
-  { name: 'Perseids', month: 8, day: 12, rate: 'up to about 100 an hour' },
-  { name: 'Orionids', month: 10, day: 21, rate: 'about 20 an hour' },
-  { name: 'Leonids', month: 11, day: 17, rate: 'about 15 an hour' },
-  { name: 'Geminids', month: 12, day: 14, rate: 'up to about 150 an hour, the year’s best' }
+/**
+ * Meteor shower peaks (IMO calendar), month and day; they vary by about a day from year to year.
+ * `zhr` is the zenithal hourly rate: what one observer would see with the radiant overhead in a
+ * perfectly dark sky. Real counts are usually a half or less.
+ */
+const SHOWERS: { name: string; month: number; day: number; zhr: number; note?: string }[] = [
+  { name: 'Quadrantids', month: 1, day: 3, zhr: 80, note: 'best from the north' },
+  { name: 'Lyrids', month: 4, day: 22, zhr: 18 },
+  { name: 'Eta Aquariids', month: 5, day: 6, zhr: 50, note: 'best from the south' },
+  { name: 'Perseids', month: 8, day: 12, zhr: 100 },
+  { name: 'Orionids', month: 10, day: 21, zhr: 20 },
+  { name: 'Leonids', month: 11, day: 17, zhr: 15 },
+  { name: 'Geminids', month: 12, day: 14, zhr: 150, note: 'the year’s best' }
 ];
+
+/** What the Moon does to a shower: a bright Moon washes out all but the brightest meteors. */
+function moonlight(ms: number): string {
+  const lit = Illumination(Body.Moon, new Date(ms)).phase_fraction;
+  return lit > 0.6 ? ' This year a bright Moon will wash out many of them.' : lit < 0.3 ? ' Little moonlight this year: a good year for it.' : '';
+}
 
 const OUTER: PlanetId[] = ['mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
 const BODY: Record<PlanetId, Body> = {
@@ -111,7 +122,7 @@ export function upcomingEvents(fromMs: number, days = 120, spacecraft: Spacecraf
     const d = distance(planetPosition(id, t), planetPosition('earth', t));
     add({
       ms: t, title: `${planetById(id).name} at opposition`, focus: id, kind: 'planet',
-      detail: `Opposite the Sun and up all night, at its closest: ${(d * AU_KM / 1e6).toFixed(0)} million km.`
+      detail: `Opposite the Sun, up all night and near its closest to Earth: ${(d * AU_KM / 1e6).toFixed(0)} million km.`
     });
   }
 
@@ -124,7 +135,7 @@ export function upcomingEvents(fromMs: number, days = 120, spacecraft: Spacecraf
       if (t > until) break;
       add({
         ms: t, title: `${planetById(id).name} at greatest elongation`, focus: id, kind: 'planet',
-        detail: `${e.elongation.toFixed(0)}° from the Sun in the ${e.visibility} sky: its best view.`
+        detail: `${e.elongation.toFixed(0)}° from the Sun in the ${e.visibility} sky: about as far from the Sun’s glare as it gets.`
       });
       from = new Date(t + DAY_MS);
     }
@@ -133,15 +144,19 @@ export function upcomingEvents(fromMs: number, days = 120, spacecraft: Spacecraf
   // Meteor shower peaks.
   for (let y = start.getUTCFullYear(); y <= new Date(until).getUTCFullYear(); y++) {
     for (const s of SHOWERS) {
-      add({ ms: Date.UTC(y, s.month - 1, s.day), title: `${s.name} meteor shower`, detail: `Peak ${s.rate}, best after midnight away from city lights.`, focus: 'earth', kind: 'meteors', approximate: true });
+      const ms = Date.UTC(y, s.month - 1, s.day);
+      const detail = `Up to about ${s.zhr} an hour in a perfectly dark sky${s.note ? `, ${s.note}` : ''}; expect fewer. Best after midnight away from city lights.${moonlight(ms)}`;
+      add({ ms, title: `${s.name} meteor shower`, detail, focus: 'earth', kind: 'meteors', approximate: true });
     }
   }
 
   // Spacecraft flybys: the closest approach to a planet within 0.02 AU (3 million km) in the data.
+  // Not in a track's first weeks, when a craft is still leaving Earth after launch.
   if (spacecraft) {
     for (const t of spacecraft.craft) {
+      const early = Date.parse(craftById(t.id).launched) + 30 * DAY_MS;
       for (const p of PLANETS) {
-        const f = closestApproach(t, p.id as PlanetId, fromMs, until);
+        const f = closestApproach(t, p.id as PlanetId, Math.max(fromMs, early), until);
         if (f) {
           add({
             ms: f.ms, title: `${craftById(t.id).name} flies past ${p.name}`, focus: t.id, kind: 'flyby',

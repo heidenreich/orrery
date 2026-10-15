@@ -67,7 +67,8 @@ describe('summarizeKp', () => {
 
 describe('Kp in words', () => {
   it('follows NOAA’s storm scale', () => {
-    expect([4.67, 5, 5.67, 6, 7, 8, 9].map(stormLevel)).toEqual([0, 1, 1, 2, 3, 4, 5]);
+    // NOAA counts 5− (4.67) as Kp 5 and 6− as Kp 6.
+    expect([4.33, 4.67, 5, 5.67, 6, 7, 8, 8.67].map(stormLevel)).toEqual([0, 1, 1, 2, 2, 3, 4, 5]);
     expect(kpWords(1)).toBe('Quiet');
     expect(kpWords(3.33)).toBe('Unsettled');
     expect(kpWords(4.33)).toBe('Active');

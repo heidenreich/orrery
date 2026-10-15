@@ -38,7 +38,7 @@ export const FACTS: Record<BodyId, BodyFacts> = {
     massEarths: 0.0553, gravity: 3.7, escapeKms: 4.3, density: 5.43,
     atmosphere: 'Almost none: a thin exosphere of oxygen, sodium, hydrogen and helium',
     moons: { count: '0' },
-    visited: 'Mariner 10, MESSENGER, BepiColombo'
+    visited: 'Mariner 10 (flybys), MESSENGER (orbited 2011–2015), BepiColombo (flybys so far, due to go into orbit from late 2026)'
   },
   venus: {
     massEarths: 0.815, gravity: 8.9, escapeKms: 10.4, density: 5.24,
@@ -62,7 +62,7 @@ export const FACTS: Record<BodyId, BodyFacts> = {
     atmosphere: 'Hydrogen 90%, helium 10%',
     moons: { count: '100+', notable: 'Ganymede (the largest moon in the solar system), volcanic Io, ice-covered Europa, Callisto' },
     rings: 'Faint dust rings',
-    visited: 'Pioneer, Voyager, Galileo, Juno'
+    visited: 'Pioneer, Voyager, Galileo, Juno (arrived 2016), and flybys by Ulysses, Cassini and New Horizons'
   },
   saturn: {
     massEarths: 95.2, gravity: 9.0, escapeKms: 35.5, density: 0.69,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { auroraWords, KP_MAX_AGE_HOURS, kpWords, stormLevel } from '$lib/data/kp';
+  import { auroraWords, KP_MAX_AGE_HOURS, kpStep, kpWords, stormLevel } from '$lib/data/kp';
   import type { KpData } from '$lib/data/weather-data';
 
   let { data, now }: { data: KpData; now: number } = $props();
@@ -12,7 +12,7 @@
   /** Kp covers the 3 hours after its time tag; age counts from the end of that interval. */
   const ageHours = $derived(data.summary ? (now - Date.parse(data.summary.latest.time)) / 3_600_000 - 3 : 0);
   const stale = $derived(ageHours > KP_MAX_AGE_HOURS);
-  const level = (kp: number) => (stormLevel(kp) ? 'storm' : kp >= 4 ? 'active' : 'quiet');
+  const level = (kp: number) => (stormLevel(kp) ? 'storm' : kpStep(kp) >= 4 ? 'active' : 'quiet');
 
   // One bar per 3-hour interval over the last three days, on the full 0–9 scale.
   const bars = $derived.by(() => {
@@ -38,10 +38,10 @@
     <div class="big">Kp {k.kp.toFixed(k.kp % 1 ? 1 : 0)} <span class="level {level(k.kp)}">{kpWords(k.kp)}</span></div>
     {#if bars}
       <svg viewBox="0 0 {W} {H}" role="img" aria-label="Kp index for the last three days, peaking at {bars.peak.kp.toFixed(1)}">
-        <line class="g1" x1="0" x2={W} y1={H - (5 / MAX) * H} y2={H - (5 / MAX) * H} />
+        <line class="g1" x1="0" x2={W} y1={H - (4.5 / MAX) * H} y2={H - (4.5 / MAX) * H} />
         {#each bars.items as b (b.key)}<rect class={b.cls} x={b.x} y={b.y} width={Math.max(1, bars.w - 1)} height={b.h} rx="1" />{/each}
       </svg>
-      <p class="range">Last 3 days, every 3 hours. The line marks Kp 5, where storms begin. Peak: Kp {bars.peak.kp.toFixed(1)}.</p>
+      <p class="range">Last 3 days, every 3 hours. The line marks where storms begin, at Kp 5− (4.7). Peak: Kp {bars.peak.kp.toFixed(1)}.</p>
     {/if}
     <p class="aurora">{auroraWords(k.kp)}</p>
     <dl class="stats">

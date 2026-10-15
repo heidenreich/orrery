@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { WorldId } from '$lib/orrery/craft';
-  import { brightness, roundPlace, tonightSky, whenAndWhere, type Place } from '$lib/orrery/tonight';
+  import { brightness, compass, height, moonAt, roundPlace, tonightSky, whenAndWhere, type Place } from '$lib/orrery/tonight';
 
   let { now, onselect }: { now: number; onselect: (id: WorldId) => void } = $props();
 
@@ -74,13 +74,15 @@
   const t = (ms: number) => fmtTime.format(new Date(ms));
   const zone = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' }).formatToParts(new Date()).find((p) => p.type === 'timeZoneName')?.value ?? '';
   const deg = (v: number, pos: string, neg: string) => `${Math.abs(v).toFixed(1)}° ${v >= 0 ? pos : neg}`;
+  // Without a place, the Moon tonight is roughly the Moon now.
+  const moonNow = $derived(moonAt(slot));
   const already = $derived(sky?.dark ? sky.dark.from <= slot : false);
 </script>
 
 <section class="tonight" data-testid="tonight" aria-labelledby="tonight-heading">
   <p class="eyebrow" id="tonight-heading">Tonight’s sky{place ? ` · ${deg(place.latitude, 'N', 'S')}, ${deg(place.longitude, 'E', 'W')}` : ''}</p>
   {#if !place}
-    <p class="lead">See which planets you can spot tonight, where to look and when.</p>
+    <p class="lead">Tonight’s Moon: {moonNow.phase.toLowerCase()}, {moonNow.lit}% lit. Share a place to see which planets you can spot, where to look and when.</p>
     <button type="button" class="primary" onclick={locate} disabled={locating}>{locating ? 'Finding you…' : 'Use my location'}</button>
     <details>
       <summary>Or enter a place</summary>
@@ -98,8 +100,8 @@
     {:else}
       <p class="lead">
         {#if sky.polar === 'polar-night'}Polar night: the Sun doesn’t rise here today.
-        {:else if already}Dark now until {t(sky.dark.to)}.
-        {:else}Dark from {t(sky.dark.from)} to {t(sky.dark.to)}.{/if}
+        {:else if already}Bright planets show now, until {t(sky.dark.to)}; fainter ones need the darker hours.
+        {:else}Bright planets show from {t(sky.dark.from)}, in twilight, until {t(sky.dark.to)}; fainter ones need the darker hours.{/if}
         Times are in your time zone{zone ? ` (${zone})` : ''}{farAway ? ', not local time there' : ''}.
       </p>
       <ul>
@@ -108,18 +110,25 @@
             <button type="button" onclick={() => onselect(o.id === 'moon' ? 'earth' : o.id)}>{o.name}</button>
             <span>
               {o.id === 'moon' ? `${sky.moon.phase}, ${sky.moon.lit}% lit.` : `${cap(brightness(o.magnitude))}.`}
-              {whenAndWhere(o, sky.dark, t)}
+              {whenAndWhere(o, t)}
             </span>
           </li>
         {:else}
           <li class="none">No planets are clear of the horizon after dark tonight.</li>
         {/each}
       </ul>
+      {#if sky.optics.length}
+        <p class="note optics" data-testid="tonight-optics">
+          With binoculars, from a dark site:
+          {#each sky.optics as o, i (o.id)}{i ? '; ' : ' '}<button type="button" class="link" onclick={() => onselect(o.id as WorldId)}>{o.name}</button>, {height(o.best.altitude)} in the {compass(o.best.azimuth)} around {t(o.best.ms)}{/each}.
+        </p>
+      {/if}
       {#if !sky.visible.some((o) => o.id === 'moon')}<p class="note">The Moon ({sky.moon.phase.toLowerCase()}) isn’t up after dark tonight.</p>{/if}
       {#if sky.hidden.length}<p class="note">Not visible tonight: {sky.hidden.join(', ')}, too close to the Sun or below the horizon.</p>{/if}
     {/if}
     <p class="note">
-      “Up” means at least 10° above the horizon, clear of most trees and buildings.
+      Visible means at least 10° above the horizon, clear of most trees and buildings, with the sky dark
+      enough for that object.
       <button type="button" class="link" onclick={() => save(null)}>Change place</button>
     </p>
   {/if}
