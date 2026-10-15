@@ -695,3 +695,36 @@ test('the overview sums up the solar system today and lists what is coming up', 
   expect(label).toMatch(/set the clock to then/);
   expect(errors).toEqual([]);
 });
+
+test('tonight’s sky uses the browser location, remembers it and lists what is up', async ({ page, context }) => {
+  const errors = trackErrors(page);
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 51.5074, longitude: -0.1278 });
+  await page.goto('/');
+  const tonight = page.getByTestId('tonight');
+  await tonight.getByRole('button', { name: 'Use my location' }).click();
+  // Rounded to 0.1° before it is shown or stored.
+  await expect(tonight.getByText('Tonight’s sky · 51.5° N, 0.1° W')).toBeVisible();
+  await expect(tonight).toContainText(/Dark (now until|from)/);
+  await page.reload();
+  await expect(tonight.getByText('Tonight’s sky · 51.5° N, 0.1° W')).toBeVisible();
+  await tonight.getByRole('button', { name: 'Change place' }).click();
+  await tonight.getByText('Or enter a place').click();
+  await tonight.getByLabel('Latitude').fill('-33.9');
+  await tonight.getByLabel('Longitude').fill('151.2');
+  await tonight.getByRole('button', { name: 'Show' }).click();
+  await expect(tonight.getByText('Tonight’s sky · 33.9° S, 151.2° E')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('tonight’s sky explains a declined location and rejects bad coordinates', async ({ page }) => {
+  await page.goto('/');
+  const tonight = page.getByTestId('tonight');
+  await tonight.getByRole('button', { name: 'Use my location' }).click();
+  await expect(tonight.getByRole('status')).toContainText('Enter one below instead');
+  await tonight.getByText('Or enter a place').click();
+  await tonight.getByLabel('Latitude').fill('95');
+  await tonight.getByLabel('Longitude').fill('0');
+  await tonight.getByRole('button', { name: 'Show' }).click();
+  await expect(tonight.getByRole('status')).toContainText('Latitude runs from −90 to 90');
+});

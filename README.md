@@ -87,6 +87,7 @@ src/
   lib/orrery/moons.ts       The Moon, Jupiter's four large moons (Astronomy Engine), Titan and Triton (Horizons)
   lib/orrery/events.ts      Coming-up events: moon phases, eclipses, seasons, oppositions, elongations, meteor showers, flybys
   lib/orrery/today.ts       The "Solar system today" summary lines
+  lib/orrery/tonight.ts     Tonight's sky from a place: dark hours, and when and where each planet and the Moon is up
   lib/data/weather-data.ts  Builds the data file, with fallback to the last good copy
   lib/data/weather.ts       Loads the data file in the browser
   lib/data/fetch-json.ts    Fetch with timeout and console logging

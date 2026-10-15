@@ -1,0 +1,81 @@
+import { describe, expect, it } from 'vitest';
+import { brightness, compass, height, roundPlace, tonightSky, whenAndWhere } from './tonight';
+
+const LONDON = { latitude: 51.5, longitude: -0.1 };
+
+describe('tonightSky', () => {
+  // Saturn was at opposition on 4 October 2026, so ten days later it is up all evening and highest
+  // in the south around midnight; Jupiter and Mars are in the morning sky.
+  const sky = tonightSky(Date.parse('2026-10-15T12:00Z'), LONDON);
+  const by = (name: string) => sky.visible.find((o) => o.name === name);
+
+  it('finds the dark window from civil dusk to dawn', () => {
+    // London sunset about 17:05 UTC on 15 October; civil dusk about 35 minutes later.
+    expect(new Date(sky.dark!.from).toISOString()).toMatch(/^2026-10-15T17:[34]/);
+    expect(new Date(sky.dark!.to).toISOString()).toMatch(/^2026-10-16T05:[45]/);
+  });
+
+  it('puts Saturn in the south around midnight', () => {
+    const s = by('Saturn')!;
+    expect(compass(s.best.azimuth)).toBe('south');
+    expect(s.best.altitude).toBeGreaterThan(30);
+    expect(s.best.altitude).toBeLessThan(45);
+    expect(s.from).toBeLessThan(Date.parse('2026-10-15T19:00Z'));
+  });
+
+  it('has Jupiter and Mars only after midnight', () => {
+    expect(by('Jupiter')!.from).toBeGreaterThan(Date.parse('2026-10-16T00:00Z'));
+    expect(by('Mars')!.from).toBeGreaterThan(Date.parse('2026-10-15T23:00Z'));
+    expect(by('Jupiter')!.magnitude).toBeLessThan(-1.5);
+  });
+
+  it('says when and where to look in words', () => {
+    const hhmm = (ms: number) => new Date(ms).toISOString().slice(11, 16);
+    expect(whenAndWhere(by('Saturn')!, sky.dark!, hhmm)).toMatch(/^Up from 18:\d0 to 0[34]:\d0; highest around 2[23]:\d0, halfway up in the south\.$/);
+    expect(whenAndWhere(by('Jupiter')!, sky.dark!, hhmm)).toMatch(/^Up from 0[12]:\d0 until dawn; highest before dawn, halfway up in the south-east\.$/);
+  });
+
+  it('lists planets lost in the Sun’s glare as hidden', () => {
+    expect(sky.hidden).toContain('Venus');
+    expect(by('Neptune')!.needsOptics).toBe(true);
+  });
+
+  it('starts from now when it is already dark', () => {
+    const late = tonightSky(Date.parse('2026-10-15T23:00Z'), LONDON);
+    expect(late.dark!.from).toBe(Date.parse('2026-10-15T23:00Z'));
+    expect(late.dark!.to).toBe(sky.dark!.to);
+  });
+
+  it('has Saturn in the north from Sydney', () => {
+    const s = tonightSky(Date.parse('2026-10-15T02:00Z'), { latitude: -33.9, longitude: 151.2 }).visible.find((o) => o.name === 'Saturn')!;
+    expect(compass(s.best.azimuth)).toBe('north');
+  });
+
+  it('knows the midnight sun', () => {
+    const t = tonightSky(Date.parse('2026-06-21T12:00Z'), { latitude: 69.6, longitude: 19 });
+    expect(t.dark).toBeNull();
+    expect(t.polar).toBe('midnight-sun');
+  });
+
+  it('knows polar night', () => {
+    const t = tonightSky(Date.parse('2026-12-21T12:00Z'), { latitude: 80, longitude: 15 });
+    expect(t.polar).toBe('polar-night');
+    expect(t.visible.length).toBeGreaterThan(0);
+  });
+});
+
+describe('words', () => {
+  it('names directions, heights and brightness', () => {
+    expect(compass(0)).toBe('north');
+    expect(compass(359)).toBe('north');
+    expect(compass(130)).toBe('south-east');
+    expect(height(15)).toBe('low');
+    expect(height(70)).toBe('high overhead');
+    expect(brightness(-4.5)).toBe('very bright');
+    expect(brightness(7.8)).toBe('needs binoculars');
+  });
+
+  it('rounds a place to 0.1°', () => {
+    expect(roundPlace({ latitude: 51.5074, longitude: -0.1278 })).toEqual({ latitude: 51.5, longitude: -0.1 });
+  });
+});

@@ -5,6 +5,7 @@
   import ComingUp from '$lib/components/ComingUp.svelte';
   import KpCard from '$lib/components/KpCard.svelte';
   import TodayCard from '$lib/components/TodayCard.svelte';
+  import TonightCard from '$lib/components/TonightCard.svelte';
   import SolarWindCard from '$lib/components/SolarWindCard.svelte';
   import SunAndSeasons from '$lib/components/SunAndSeasons.svelte';
   import { ago, celsius, km, lightTime, seasonWords } from '$lib/format';
@@ -217,6 +218,7 @@
       weather and auroras at Earth, and the latest weather report from NASA's Curiosity rover on Mars.
     </p>
     <TodayCard {weather} {spacecraft} {now} {onselect} />
+    <TonightCard {now} {onselect} />
     <table class="worlds" data-testid="worlds">
       <caption class="eyebrow">Worlds right now</caption>
       <thead>

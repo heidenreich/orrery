@@ -45,6 +45,7 @@
   li {
     display: grid;
     grid-template-columns: 76px 1fr;
+    align-items: start;
     gap: 8px;
     font-size: 13px;
     line-height: 1.4;
