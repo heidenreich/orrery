@@ -48,7 +48,9 @@ The npm 10.9 bundled with Node 22 crashes on this dependency tree, so
 The hourly run (at :23) only refreshes the data: it skips the test job, so a
 flaky test or a failed browser install cannot stop the update. To refresh by
 hand, run the CI workflow from the Actions tab. Each build's summary shows what
-data it fetched.
+data it fetched. Data runs queue apart from push runs, so they never displace a
+commit waiting for its tests, and a data run skips its deploy if `main` has
+moved on by then (that commit's own run deploys).
 
 Pages must be set to deploy from GitHub Actions (Settings → Pages → Source).
 GitHub pauses scheduled workflows in a public repository after 60 days without
@@ -71,11 +73,21 @@ src/
   lib/orrery/ephemeris.ts   Planet positions (Astronomy Engine)
   lib/orrery/orbits.ts      Orbit shapes and paths (JPL mean elements), Mars Sol Date
   lib/orrery/bodies.ts      Planet data: orbital elements, sizes, weather facts
+  lib/orrery/facts.ts       Mass, gravity, density, atmosphere, moons, rings, missions
   lib/orrery/scene.ts       three.js scene, camera and labels (no UI framework code)
   lib/orrery/textures.ts    Drawn planet, ring and glow textures (shown until the images load)
   lib/orrery/seasons.ts     Sunlight and seasons from each planet's orbit and pole
   lib/data/rems.ts          Parser for NASA's REMS feed
   lib/data/solar-wind.ts    Parser for NOAA's real-time solar wind feed
+  lib/data/kp.ts            Parser for NOAA's planetary K-index, storm level and aurora guide
+  lib/data/xray.ts          Parser for NOAA's GOES X-ray flux, flare class and radio blackout level
+  lib/data/horizons.ts      JPL Horizons requests and vector-table parser
+  lib/data/spacecraft-data.ts  Builds, checks and interpolates the spacecraft data file
+  lib/orrery/craft.ts       The spacecraft shown, with their Horizons IDs and trajectory windows
+  lib/orrery/moons.ts       The Moon, Jupiter's four large moons (Astronomy Engine), Titan and Triton (Horizons)
+  lib/orrery/events.ts      Coming-up events: moon phases, eclipses, seasons, oppositions, elongations, meteor showers, flybys
+  lib/orrery/today.ts       The "Solar system today" summary lines
+  lib/orrery/tonight.ts     Tonight's sky from a place: dark hours, and when and where each planet and the Moon is up
   lib/data/weather-data.ts  Builds the data file, with fallback to the last good copy
   lib/data/weather.ts       Loads the data file in the browser
   lib/data/fetch-json.ts    Fetch with timeout and console logging
@@ -83,7 +95,10 @@ src/
   lib/components/           Orrery canvas, info panel, solar wind card
   routes/+page.svelte       The page: header, clock, controls
   routes/data/weather.json  Prerendered data file, built from NASA and NOAA
-static/textures/            Planet, Sun and ring images (Solar System Scope, CC BY 4.0)
+static/textures/            Planet, Moon, Sun and ring images (Solar System Scope, CC BY 4.0)
+static/models/              Spacecraft models: Voyager, Parker, New Horizons, Europa Clipper (NASA), JUICE (ESA)
+scripts/assemble-juice.mjs  Builds the JUICE model from ESA's parts
+static/draco/               three's Draco decoder for those models (npm run sync:draco after a three upgrade)
 tests/e2e/                  Browser smoke tests
 ```
 
@@ -117,13 +132,17 @@ orbit plane and 0.6% of its distance range. Playback stops at those years.
 
 ## Data
 
-The browser loads one small file, `data/weather.json` (a few KB), built when
-the site is built. The browser never contacts NASA or NOAA.
+The browser loads two files built with the site: `data/weather.json` (a few KB)
+and, for the 3D view, `data/spacecraft.json` (tens of KB). The browser never
+contacts NASA, NOAA or JPL.
 
 | Source | URL | Size | Kept |
 | --- | --- | --- | --- |
 | Curiosity REMS weather | `mars.nasa.gov/rss/api/?feed=weather&category=msl&feedtype=json` | ~2 MB, whole mission | Newest report, last 60 sols |
 | NOAA real-time solar wind | `services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json` | ~2.6 MB, 1-minute records | Newest reading, last 24 h at 10-minute steps |
+| NOAA GOES X-ray flux | `services.swpc.noaa.gov/json/goes/primary/xrays-1-day.json` | ~1 MB, 1-minute records, two channels | Newest 0.1–0.8 nm reading, 24 h peak, 24 h at 10-minute steps |
+| JPL Horizons spacecraft trajectories | `ssd.jpl.nasa.gov/api/horizons.api` | one request per spacecraft | Position and velocity at even steps, written to `data/spacecraft.json` |
+| NOAA planetary K-index (Kp) | `services.swpc.noaa.gov/products/noaa-planetary-k-index.json` | small, 3-hourly for about a week | Newest value, last 3 days |
 
 At build time `src/routes/data/weather.json/+server.ts` fetches both feeds and
 writes the file. When a feed fails, the build reuses that part of the live
@@ -132,7 +151,7 @@ good data instead of replacing it. With no previous copy, the Mars panel shows
 the stored report in `src/lib/data/mars-report.ts` and the solar wind is hidden.
 Set `ORRERY_OFFLINE=1` to build without any network requests.
 
-Logging: the build logs under `[rems]`, `[solar-wind]` and `[data]` (visible in
+Logging: the build logs under `[rems]`, `[solar-wind]`, `[xray]`, `[kp]`, `[craft]` and `[data]` (visible in
 the CI log), and the browser logs loading the file under `[weather]`.
 
 Notes on the feeds (checked 2026-10-13):
@@ -149,7 +168,7 @@ Notes on the feeds (checked 2026-10-13):
 
 ## Images
 
-The Sun, planet and Saturn ring images in `static/textures/` are from
+The Sun, planet, Moon and Saturn ring images in `static/textures/` are from
 [Solar System Scope](https://www.solarsystemscope.com/textures/), based on NASA
 imagery, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 and credited in the page's overview panel. They came via the Qt 3D project's
@@ -158,6 +177,24 @@ identical halves (`static/textures/LICENSE.txt`). About 800 KB in all, loaded
 after the scene appears; until then, or if one fails, the drawn textures in
 `textures.ts` stay. Venus keeps its drawn cloud texture, since the only Venus
 map shows the radar-mapped surface beneath the clouds.
+
+## Spacecraft models
+
+Voyager (used for both probes) and Parker Solar Probe are NASA's own models from
+[NASA 3D Resources](https://github.com/nasa/NASA-3D-Resources), which describes
+them as free and without copyright. New Horizons and Europa Clipper are NASA
+models from [NASA Science's 3D resources](https://science.nasa.gov/3d-resources/)
+(credit NASA VTAD), made smaller for the web with glTF Transform; the source and
+the steps are in `static/models/LICENSE.txt`. They load only
+when one of those spacecraft is selected, with three's Draco decoder copied into
+`static/draco/`; a unit test fails if that copy no longer matches the installed
+three, and `npm run sync:draco` refreshes it. The models are drawn far larger
+than life and pointed as the real ones are: the Voyager, New Horizons and Europa
+Clipper dishes at Earth, Parker's heat shield at the Sun. JUICE is assembled
+here (`scripts/assemble-juice.mjs`) from the parts ESA's SPICE Service publishes
+for its Cosmographia viewer, each placed with ESA's SPICE kernels; no licence is
+stated for those parts, so `static/models/LICENSE.txt` records the assumption
+under which they are used, and its dish also points at Earth.
 
 ## Licence
 

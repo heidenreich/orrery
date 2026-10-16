@@ -43,10 +43,10 @@
       {#if s.density !== null}<dt>Density</dt><dd>{s.density.toFixed(1)} protons/cm³</dd>{/if}
       {#if s.temperature !== null}<dt>Temperature</dt><dd>{Math.round(s.temperature).toLocaleString('en-US')} K</dd>{/if}
       <dt>Measured</dt>
-      <dd>{fmtWhen.format(new Date(s.time))} ({ago(s.time, now)}) by {s.source}</dd>
+      <dd>{fmtWhen.format(new Date(s.time))} ({ago(s.time, now)}) by NOAA's monitoring spacecraft ({s.source})</dd>
     </dl>
     <p class="note">
-      NOAA real-time solar wind, measured upstream of Earth.
+      NOAA real-time solar wind, measured at the L1 point, 1.5 million km from Earth toward the Sun.
       {#if data.source === 'previous'}NOAA was unreachable at the last update, so this is the previous reading.{/if}
     </p>
     {#if stale}

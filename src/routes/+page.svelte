@@ -5,7 +5,10 @@
   import { loadWeather } from '$lib/data/weather';
   import type { WeatherData } from '$lib/data/weather-data';
   import Orrery from '$lib/components/Orrery.svelte';
-  import { ALL_BODIES, bodyById, planetPositions, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
+  import { ALL_BODIES, bodyById, planetPositions, type PositionsAU } from '$lib/orrery/bodies';
+  import { craftById, isCraftId, type WorldId } from '$lib/orrery/craft';
+  import { loadSpacecraft } from '$lib/data/spacecraft';
+  import type { SpacecraftData } from '$lib/data/spacecraft-data';
   import type { ScaleMode } from '$lib/orrery/scene';
   import { LIVE_TOLERANCE_MS, REAL_TIME, SIM_MAX_MS, SIM_MIN_MS } from '$lib/orrery/time';
 
@@ -18,19 +21,28 @@
     { value: -10, label: '−10 days / s' }
   ];
 
-  let selected: BodyId | null = $state(null);
+  let selected: WorldId | null = $state(null);
+  // Plain data, replaced whole and never edited in place: $state.raw skips Svelte's deep proxies,
+  // which would slow every read of the trajectory arrays in the scene's per-frame work.
+  let spacecraft: SpacecraftData | null = $state.raw(null);
+  // The phone sheet sits just above the toolbar, so share the toolbar's height with the CSS.
+  let toolbarHeight = $state(0);
+  $effect(() => {
+    if (toolbarHeight) document.documentElement.style.setProperty('--toolbar-h', `${toolbarHeight}px`);
+  });
+  const nameOf = (id: WorldId) => (isCraftId(id) ? craftById(id).name : bodyById(id).name);
   let playing = $state(true);
   let daysPerSec = $state(REAL_TIME);
   const SITE_URL = 'https://heidenreich.github.io/orrery';
   const DESCRIPTION =
-    'Interactive 3D solar system: real planet positions, distances, sunlight and seasons, with live solar wind and Mars weather.';
+    'Interactive 3D solar system: real planet positions, distances, sunlight and seasons, with live solar wind, Earth space weather and Mars weather.';
 
   let scale: ScaleMode = $state('compressed');
   let resetToNow = $state(0);
   // Null until the page runs in the browser, so the prerendered HTML never carries the build date.
   let simMs: number | null = $state(null);
-  let positions: PositionsAU | null = $state(null);
-  let weather: WeatherData | null = $state(null);
+  let positions: PositionsAU | null = $state.raw(null);
+  let weather: WeatherData | null = $state.raw(null);
 
   const fmtDate = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   const fmtTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
@@ -45,6 +57,16 @@
       : daysPerSec === REAL_TIME && simMs !== null && Math.abs(simMs - now) < LIVE_TOLERANCE_MS ? 'Live'
       : 'Simulated'
   );
+
+  // Picking a coming-up event: pause the clock there and select what it is about.
+  let jumpTo: { ms: number } | null = $state(null);
+  function jump(ms: number, focus: WorldId | null) {
+    playing = false;
+    jumpTo = { ms };
+    simMs = ms;
+    positions = planetPositions(ms);
+    if (focus) selected = focus;
+  }
 
   function goLive() {
     daysPerSec = REAL_TIME;
@@ -63,13 +85,15 @@
   });
 
   // One place that says what is selected, for screen readers.
-  const announcement = $derived(selected ? `${bodyById(selected).name} selected` : 'Overview');
+  const announcement = $derived(selected ? `${nameOf(selected)} selected` : 'Overview');
 
   let picker: HTMLSelectElement;
-  async function closePanel() {
+  // Keyboard users get focus back on the World menu. Not after a tap or click: focusing a
+  // <select> from script makes iOS Safari pop its picker open.
+  async function closePanel(fromKeyboard: boolean) {
     selected = null;
     await tick();
-    picker?.focus();
+    if (fromKeyboard) picker?.focus();
   }
 
   onMount(() => {
@@ -77,6 +101,7 @@
     // Seed positions so the panel has distances even if the 3D view never starts.
     positions = planetPositions(simMs);
     loadWeather(resolve('/data/weather.json')).then((w) => (weather = w));
+    loadSpacecraft(resolve('/data/spacecraft.json')).then((s) => (spacecraft = s));
     const timer = setInterval(() => {
       now = Date.now();
       // Without the 3D scene nothing else advances the clock, so keep live mode live here.
@@ -89,7 +114,7 @@
   });
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && selected) closePanel();
+    if (e.key === 'Escape' && selected) closePanel(true);
     if (e.key === ' ' && e.target === document.body) {
       e.preventDefault();
       playing = !playing;
@@ -116,10 +141,12 @@
 
 <Orrery
   {selected}
+  {spacecraft}
   {playing}
   {daysPerSec}
   {scale}
   {resetToNow}
+  {jumpTo}
   onselect={(id) => (selected = id)}
   onlimit={() => (playing = false)}
   ontick={(ms, pos) => {
@@ -152,28 +179,35 @@
   {/if}
 </div>
 
-<InfoPanel {selected} {simMs} {positions} {weather} {now} onclose={closePanel} onselect={(id) => (selected = id)} />
+<InfoPanel {selected} {simMs} {positions} {weather} {spacecraft} {now} onclose={closePanel} onselect={(id) => (selected = id)} onjump={jump} />
 
-<div class="controls surface" role="toolbar" aria-label="Time and view controls" data-label-avoid>
+<div class="controls surface" role="toolbar" aria-label="Time and view controls" data-label-avoid bind:offsetHeight={toolbarHeight}>
   <select
     class="ctl"
     name="world"
     aria-label="World"
     bind:this={picker}
     value={selected ?? ''}
-    onchange={(e) => (selected = (e.currentTarget.value || null) as BodyId | null)}
+    onchange={(e) => (selected = (e.currentTarget.value || null) as WorldId | null)}
   >
     <option value="">Overview</option>
-    {#each ALL_BODIES as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
+    <optgroup label="Sun and planets">
+      {#each ALL_BODIES as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
+    </optgroup>
+    {#if spacecraft?.craft.length}
+      <optgroup label="Spacecraft">
+        {#each spacecraft.craft as t (t.id)}<option value={t.id}>{craftById(t.id).name}</option>{/each}
+      </optgroup>
+    {/if}
   </select>
   <button class="ctl play" onclick={() => (playing = !playing)}>
     <span aria-hidden="true">{playing ? '❚❚' : '▶'}</span>
-    {playing ? 'Pause' : 'Play'}
+    <span class="play-text">{playing ? 'Pause' : 'Play'}</span>
   </button>
   <select class="ctl" name="speed" aria-label="Playback speed" bind:value={daysPerSec} onchange={() => (playing = true)}>
     {#each SPEEDS as s (s.value)}<option value={s.value}>{s.label}</option>{/each}
   </select>
-  <button class="ctl" onclick={goLive} disabled={status === 'Live'}>Now</button>
+  <button class="ctl now" onclick={goLive} disabled={status === 'Live'}>Now</button>
   <span class="grow"></span>
   <span class="ctl-label" id="scale-label">Distances</span>
   <div class="seg" role="group" aria-labelledby="scale-label">
@@ -294,7 +328,7 @@
     left: 50%;
     transform: translateX(-50%);
     bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    width: min(720px, calc(100% - 32px));
+    width: min(780px, calc(100% - 32px));
     box-sizing: border-box;
     display: flex;
     flex-wrap: wrap;
@@ -335,6 +369,12 @@
     border-left: 1px solid var(--panel-line);
   }
 
+  /* Long spacecraft names would otherwise widen the menu and wrap the toolbar. */
+  select[name='world'] {
+    max-width: 150px;
+    text-overflow: ellipsis;
+  }
+
   select.ctl option {
     background: #141a2c;
     color: var(--ink);
@@ -343,6 +383,56 @@
   @media (max-width: 640px) {
     h1 {
       font-size: 20px;
+    }
+
+    /* Two rows: the two menus side by side, then play, Now and the distance switch. With 44 px
+       controls the desktop order wraps to three rows and takes space from the 3D view. */
+    select[name='world'],
+    select[name='speed'] {
+      flex: 1 1 40%;
+      max-width: none;
+      min-width: 0;
+    }
+
+    select[name='speed'] {
+      order: 1;
+    }
+
+    .play {
+      order: 2;
+      min-width: 44px;
+    }
+
+    /* The icon alone on phones; the button keeps its name for screen readers. */
+    .play-text {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .now {
+      order: 3;
+    }
+
+    .grow {
+      order: 4;
+    }
+
+    /* The group keeps "Distances" as its accessible name; on screen the buttons say enough. */
+    .ctl-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .seg {
+      order: 5;
     }
   }
 </style>

@@ -1,23 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { asset } from '$app/paths';
-  import { ALL_BODIES, type BodyId, type PositionsAU } from '$lib/orrery/bodies';
+  import { ALL_BODIES, type PositionsAU } from '$lib/orrery/bodies';
+  import { craftById, type WorldId } from '$lib/orrery/craft';
+  import { MOONS, type MoonId } from '$lib/orrery/moons';
+  import type { SpacecraftData } from '$lib/data/spacecraft-data';
   import type { ScaleMode, TextureUrls } from '$lib/orrery/scene';
 
   interface Props {
-    selected: BodyId | null;
+    selected: WorldId | null;
+    /** Trajectories to draw; null until loaded or when unavailable. */
+    spacecraft: SpacecraftData | null;
     playing: boolean;
     daysPerSec: number;
     scale: ScaleMode;
     /** Bump to jump the clock back to the current date. */
     resetToNow: number;
-    onselect: (id: BodyId) => void;
+    /** Set the clock to this moment (a new object each time). */
+    jumpTo: { ms: number } | null;
+    onselect: (id: WorldId) => void;
     ontick: (simMs: number, positions: PositionsAU) => void;
     /** Playback reached the earliest or latest supported date and stopped. */
     onlimit: () => void;
   }
 
-  let { selected, playing, daysPerSec, scale, resetToNow, onselect, ontick, onlimit }: Props = $props();
+  let { selected, spacecraft, playing, daysPerSec, scale, resetToNow, jumpTo, onselect, ontick, onlimit }: Props = $props();
 
   // Solar System Scope maps (CC BY 4.0, see static/textures/LICENSE.txt). Venus keeps its drawn
   // cloud texture: the only Venus map shows the radar surface, which is always hidden by cloud.
@@ -30,13 +37,23 @@
       jupiter: asset('/textures/jupiter.webp'),
       saturn: asset('/textures/saturn.webp'),
       uranus: asset('/textures/uranus.webp'),
-      neptune: asset('/textures/neptune.webp')
+      neptune: asset('/textures/neptune.webp'),
+      moon: asset('/textures/moon.webp')
     },
-    ring: asset('/textures/saturn-ring.webp')
+    ring: asset('/textures/saturn-ring.webp'),
+    // NASA 3D Resources (see static/models/LICENSE.txt).
+    models: {
+      voyager: asset('/models/voyager.glb'),
+      parker: asset('/models/parker.glb'),
+      'new-horizons': asset('/models/new-horizons.glb'),
+      'europa-clipper': asset('/models/europa-clipper.glb'),
+      juice: asset('/models/juice.glb')
+    },
+    dracoPath: asset('/draco/draco_decoder.wasm').replace(/draco_decoder\.wasm$/, '')
   };
 
   let container: HTMLDivElement;
-  const labels: Partial<Record<BodyId, HTMLElement>> = $state({});
+  const labels: Partial<Record<WorldId | MoonId, HTMLElement>> = $state({});
   let scene: import('$lib/orrery/scene').OrreryScene | undefined = $state();
   let failed = $state(false);
   let contextLost = $state(false);
@@ -79,10 +96,16 @@
     scene?.setScale(scale);
   });
   $effect(() => {
+    if (scene && spacecraft) scene.setSpacecraft(spacecraft);
+  });
+  $effect(() => {
     scene?.select(selected);
   });
   $effect(() => {
     if (scene && resetToNow) scene.simMs = Date.now();
+  });
+  $effect(() => {
+    if (scene && jumpTo) scene.simMs = jumpTo.ms;
   });
 </script>
 
@@ -121,6 +144,23 @@
       onclick={() => onselect(b.id)}
     >
       {b.name}
+    </button>
+  {/each}
+  <!-- Moon names, shown while their planet is selected; not buttons (a click on the moon itself
+       selects its planet). -->
+  {#each MOONS as m (m.id)}
+    <span class="label moon" bind:this={labels[m.id]} hidden>{m.name}</span>
+  {/each}
+  {#each spacecraft?.craft ?? [] as t (t.id)}
+    <button
+      type="button"
+      class="label craft"
+      class:active={selected === t.id}
+      bind:this={labels[t.id]}
+      hidden
+      onclick={() => onselect(t.id)}
+    >
+      {craftById(t.id).name}
     </button>
   {/each}
 </div>
@@ -196,6 +236,20 @@
 
   .label:hover {
     color: var(--ink);
+  }
+
+  .label.moon {
+    pointer-events: none;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--ink-dim);
+  }
+
+  .label.craft {
+    color: #8fe3ff;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: none;
   }
 
   .label.active {

@@ -8,6 +8,7 @@
   --ink-dim: #9aa3bb;
   --sun: #f0b65a;
   --mars: #d9774a;
+  --earth: #7fb2ec;
   --warn: #f5c451;
   --live: #7fd6a4;
   --font-display: 'Syne', 'Avenir Next', 'Segoe UI', sans-serif;
@@ -54,6 +55,13 @@ body {
   border-radius: 9px;
   padding: 8px 12px;
   cursor: pointer;
+}
+
+/* Comfortable touch targets on phones (44 px is the usual minimum). */
+@media (max-width: 640px) {
+  .ctl {
+    min-height: 44px;
+  }
 }
 
 .ctl:hover:not(:disabled) {

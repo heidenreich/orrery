@@ -25,16 +25,19 @@ const KM_PER_AU = 149_597_870.7;
 /** "149.6 million km", "1.31 billion km". */
 export function km(au: number): string {
   const millions = (au * KM_PER_AU) / 1e6;
-  if (millions >= 1000) return `${(millions / 1000).toLocaleString('en-US', { maximumFractionDigits: 2 })} billion km`;
+  // Compare after rounding to the shown precision, so 999.96 million reads "1 billion", not "1,000 million".
+  if (Math.round(millions * 10) / 10 >= 1000) return `${(millions / 1000).toLocaleString('en-US', { maximumFractionDigits: 2 })} billion km`;
   return `${millions.toLocaleString('en-US', { maximumFractionDigits: 1 })} million km`;
 }
 
 /** Light travel time for a distance in AU: "8.3 minutes", "1 h 13 min". */
 export function lightTime(au: number): string {
   const min = au * 8.316746;
-  if (min < 60) return `${min.toFixed(1)} minutes`;
-  const h = Math.floor(min / 60);
-  return `${h} h ${Math.round(min - h * 60)} min`;
+  // Below 59.95 the one-decimal form can't round up to "60.0 minutes".
+  if (min < 59.95) return `${min.toFixed(1)} minutes`;
+  // Round the total first, so 119.6 minutes reads "2 h 0 min", not "1 h 60 min".
+  const total = Math.round(min);
+  return `${Math.floor(total / 60)} h ${total % 60} min`;
 }
 
 const QUARTERS = ['spring', 'summer', 'autumn', 'winter'] as const;

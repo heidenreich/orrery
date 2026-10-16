@@ -10,11 +10,16 @@ describe('format', () => {
   it('writes distances in millions or billions of km', () => {
     expect(km(1)).toBe('149.6 million km');
     expect(km(8.776)).toBe('1.31 billion km');
+    // Just under a billion rounds up to it rather than reading "1,000 million".
+    expect(km(6.6845)).toBe('1 billion km');
   });
 
   it('writes light travel time in minutes or hours', () => {
     expect(lightTime(1)).toBe('8.3 minutes');
     expect(lightTime(8.776)).toBe('1 h 13 min');
+    expect(lightTime(119.6 / 8.316746)).toBe('2 h 0 min');
+    expect(lightTime(59.97 / 8.316746)).toBe('1 h 0 min');
+    expect(lightTime(173.4)).toBe('24 h 2 min');
   });
 
   it('describes a Mars solar longitude in words', () => {
