@@ -96,7 +96,8 @@ src/
   routes/+page.svelte       The page: header, clock, controls
   routes/data/weather.json  Prerendered data file, built from NASA and NOAA
 static/textures/            Planet, Moon, Sun and ring images (Solar System Scope, CC BY 4.0)
-static/models/              Voyager, Parker Solar Probe, New Horizons and Europa Clipper models (NASA)
+static/models/              Spacecraft models: Voyager, Parker, New Horizons, Europa Clipper (NASA), JUICE (ESA)
+scripts/assemble-juice.mjs  Builds the JUICE model from ESA's parts
 static/draco/               three's Draco decoder for those models (npm run sync:draco after a three upgrade)
 tests/e2e/                  Browser smoke tests
 ```
@@ -189,8 +190,11 @@ when one of those spacecraft is selected, with three's Draco decoder copied into
 `static/draco/`; a unit test fails if that copy no longer matches the installed
 three, and `npm run sync:draco` refreshes it. The models are drawn far larger
 than life and pointed as the real ones are: the Voyager, New Horizons and Europa
-Clipper dishes at Earth, Parker's heat shield at the Sun. JUICE (ESA) has no
-model here, so it keeps its marker.
+Clipper dishes at Earth, Parker's heat shield at the Sun. JUICE is assembled
+here (`scripts/assemble-juice.mjs`) from the parts ESA's SPICE Service publishes
+for its Cosmographia viewer, each placed with ESA's SPICE kernels; no licence is
+stated for those parts, so `static/models/LICENSE.txt` records the assumption
+under which they are used, and its dish also points at Earth.
 
 ## Licence
 

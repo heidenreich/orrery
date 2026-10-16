@@ -50,7 +50,7 @@ describe('built site', () => {
   it('ships the spacecraft models and the Draco decoder they need', () => {
     const scripts = readdirSync(join(dir, '_app'), { recursive: true, encoding: 'utf8' }).filter((f) => f.endsWith('.js'));
     const wanted = new Set(scripts.flatMap((f) => [...read(join('_app', f)).matchAll(/models\/([\w-]+\.glb)/g)].map((m) => m[1])));
-    expect([...wanted].sort()).toEqual(['europa-clipper.glb', 'new-horizons.glb', 'parker.glb', 'voyager.glb']);
+    expect([...wanted].sort()).toEqual(['europa-clipper.glb', 'juice.glb', 'new-horizons.glb', 'parker.glb', 'voyager.glb']);
     for (const f of wanted) expect(readFileSync(join(dir, 'models', f)).subarray(0, 4).toString()).toBe('glTF');
     for (const f of ['draco_decoder.wasm', 'draco_wasm_wrapper.js']) expect(existsSync(join(dir, 'draco', f)), f).toBe(true);
   });

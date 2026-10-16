@@ -54,7 +54,8 @@ function craftSample(): string {
       { id: 'parker', source: 'live', fetchedAt, start: new Date(Date.now() - 20 * DAY).toISOString(), stepMs: DAY, ...parker },
       // Two parked craft, so the menu lists them and their models can be loaded.
       { id: 'new-horizons', source: 'live', fetchedAt, start: new Date(start).toISOString(), stepMs: 60 * DAY, ...still(-20, 55, 2, 15) },
-      { id: 'europa-clipper', source: 'live', fetchedAt, start: new Date(start).toISOString(), stepMs: 60 * DAY, ...still(2.2, -1.5, 0, 15) }
+      { id: 'europa-clipper', source: 'live', fetchedAt, start: new Date(start).toISOString(), stepMs: 60 * DAY, ...still(2.2, -1.5, 0, 15) },
+      { id: 'juice', source: 'live', fetchedAt, start: new Date(start).toISOString(), stepMs: 60 * DAY, ...still(-1.8, 2.4, 0, 15) }
     ],
     missing: []
   });
@@ -538,7 +539,7 @@ test('spacecraft appear in the World menu and open a panel with distance, signal
   const errors = trackErrors(page);
   await page.goto('/');
   const world = page.getByRole('combobox', { name: 'World' });
-  await expect(world.locator('optgroup[label="Spacecraft"] option')).toHaveText(['Voyager 1', 'Parker Solar Probe', 'New Horizons', 'Europa Clipper']);
+  await expect(world.locator('optgroup[label="Spacecraft"] option')).toHaveText(['Voyager 1', 'Parker Solar Probe', 'New Horizons', 'Europa Clipper', 'JUICE']);
 
   await world.selectOption({ label: 'Voyager 1' });
   const p = panel(page);
@@ -687,6 +688,9 @@ test('spacecraft load their NASA 3D models only when selected', async ({ page })
     await expect(panel(page)).toContainText('3D model from NASA Science (NASA VTAD)');
     await expect(panel(page)).toContainText('dish to Earth');
   }
+  await page.getByRole('combobox', { name: 'World' }).selectOption({ label: 'JUICE' });
+  await expect.poll(() => fetched).toContain('models/juice.glb');
+  await expect(panel(page)).toContainText("3D model from ESA's SPICE Service, assembled here from its parts");
   expect(errors).toEqual([]);
 });
 

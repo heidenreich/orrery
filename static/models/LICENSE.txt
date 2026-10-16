@@ -1,4 +1,4 @@
-Spacecraft models in this folder, all credit NASA:
+Spacecraft models in this folder, credit NASA except JUICE (ESA):
 
 voyager.glb         "Voyager Probe (A)", used for both Voyager 1 and Voyager 2
 parker.glb          "Parker Solar Probe"
@@ -12,5 +12,14 @@ europa-clipper.glb  "Europa Clipper 3D Model", https://science.nasa.gov/resource
   geometry, WebP textures at most 1024 px, meshes simplified to about half): 3.3 MB to 0.19 MB and
   35.7 MB to 1.3 MB.
 
-Use follows NASA's media guidelines (https://www.nasa.gov/nasa-brand-center/images-and-media); no
+juice.glb           JUICE, credit ESA SPICE Service. Assembled for this site from the Cosmographia
+  model parts ESA's SPICE Service publishes (https://spiftp.esac.esa.int/data/SPICE/JUICE/misc/models/:
+  bus v07, solar array v02, MGA dish and pointing mechanism v04), each placed with ESA's JUICE SPICE
+  kernels; the magnetometer boom and radio antennas are left out. Script: scripts/assemble-juice.mjs.
+  Then made smaller like the two above: 7.1 MB to 0.35 MB.
+  No licence is stated for these parts. They are used here, with credit, on the assumption that ESA
+  allows this for a non-commercial educational site; ask ESA (the JUICE SPICE contact is named in
+  misc/cosmo/aareadme.txt there) before any other use.
+
+Use of the NASA models follows NASA's media guidelines (https://www.nasa.gov/nasa-brand-center/images-and-media); no
 NASA endorsement is implied.

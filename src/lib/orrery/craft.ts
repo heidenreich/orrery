@@ -25,12 +25,13 @@ export interface Craft {
   model?: CraftModel;
 }
 
-export type ModelFile = 'voyager' | 'parker' | 'new-horizons' | 'europa-clipper';
+export type ModelFile = 'voyager' | 'parker' | 'new-horizons' | 'europa-clipper' | 'juice';
 
 export interface CraftModel {
   file: ModelFile;
   /** The model's axis that should point at `toward`: Voyager's and New Horizons' dishes (+y) and
-   * Europa Clipper's (−y) at Earth, Parker's heat shield (−z) at the Sun. Read from the models. */
+   * Europa Clipper's (−y) and JUICE's (−x) at Earth, Parker's heat shield (−z) at the Sun. Read
+   * from the models. */
   axis: [number, number, number];
   toward: 'earth' | 'sun';
   /** Drawn this much larger than the usual model size: for craft whose longest part is a thin
@@ -90,6 +91,8 @@ export const CRAFT: Craft[] = [
     id: 'juice', name: 'JUICE', horizonsId: '-28', launched: '2023-04-14', agency: 'ESA',
     // Daily for its flybys; two years back keeps the file small.
     from: { daysBack: 730 }, daysAhead: 365, step: '1 d',
+    // Its two cross-shaped solar arrays span 27 m.
+    model: { file: 'juice', axis: [-1, 0, 0], toward: 'earth', scale: 1.8 },
     about: [
       'ESA’s Jupiter Icy Moons Explorer, due at Jupiter in 2031 to study Ganymede, Callisto and Europa.',
       'On its way it flew past the Moon and Earth in August 2024 (the first lunar-Earth double flyby), Venus in August 2025 and Earth again in September 2026.'

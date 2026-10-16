@@ -199,7 +199,8 @@
       <p class="note" data-testid="craft-source">
         Trajectory from NASA JPL's Horizons system, fetched {ago(track.fetchedAt, now)}{track.source === 'previous'
           ? ' (Horizons was unreachable at the last update, so this is the previous copy)'
-          : ''}.{#if craft.model}{' '}3D model from {#if craft.model.file === 'voyager' || craft.model.file === 'parker'}<a href="https://github.com/nasa/NASA-3D-Resources" rel="noopener" target="_blank">NASA 3D Resources</a>{:else}<a
+          : ''}.{#if craft.model}{' '}3D model from {#if craft.model.file === 'voyager' || craft.model.file === 'parker'}<a href="https://github.com/nasa/NASA-3D-Resources" rel="noopener" target="_blank">NASA 3D Resources</a>{:else if craft.model.file === 'juice'}ESA's <a
+              href="https://spiftp.esac.esa.int/data/SPICE/JUICE/misc/models/" rel="noopener" target="_blank">SPICE Service</a>, assembled here from its parts{:else}<a
               href="https://science.nasa.gov/3d-resources/" rel="noopener" target="_blank">NASA Science</a> (NASA VTAD){/if},
           drawn far larger than life and pointed as the real one points ({craft.model.toward === 'sun'
             ? 'heat shield to the Sun'

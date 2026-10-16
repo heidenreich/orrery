@@ -46,7 +46,8 @@
       voyager: asset('/models/voyager.glb'),
       parker: asset('/models/parker.glb'),
       'new-horizons': asset('/models/new-horizons.glb'),
-      'europa-clipper': asset('/models/europa-clipper.glb')
+      'europa-clipper': asset('/models/europa-clipper.glb'),
+      juice: asset('/models/juice.glb')
     },
     dracoPath: asset('/draco/draco_decoder.wasm').replace(/draco_decoder\.wasm$/, '')
   };
