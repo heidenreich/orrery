@@ -17,3 +17,8 @@ updates:
       npm-minor-and-patch:
         patterns: ['*']
         update-types: [minor, patch]
+    ignore:
+      # svelte-check and SvelteKit 3 support only TypeScript 6 so far (checked October 2026); remove
+      # this once both accept 7.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
