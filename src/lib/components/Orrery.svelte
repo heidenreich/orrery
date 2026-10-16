@@ -30,26 +30,26 @@
   // cloud texture: the only Venus map shows the radar surface, which is always hidden by cloud.
   const textures: TextureUrls = {
     bodies: {
-      sun: asset('/textures/sun.webp'),
-      mercury: asset('/textures/mercury.webp'),
-      earth: asset('/textures/earth.webp'),
-      mars: asset('/textures/mars.webp'),
-      jupiter: asset('/textures/jupiter.webp'),
-      saturn: asset('/textures/saturn.webp'),
-      uranus: asset('/textures/uranus.webp'),
-      neptune: asset('/textures/neptune.webp'),
-      moon: asset('/textures/moon.webp')
+      sun: asset('textures/sun.webp'),
+      mercury: asset('textures/mercury.webp'),
+      earth: asset('textures/earth.webp'),
+      mars: asset('textures/mars.webp'),
+      jupiter: asset('textures/jupiter.webp'),
+      saturn: asset('textures/saturn.webp'),
+      uranus: asset('textures/uranus.webp'),
+      neptune: asset('textures/neptune.webp'),
+      moon: asset('textures/moon.webp')
     },
-    ring: asset('/textures/saturn-ring.webp'),
+    ring: asset('textures/saturn-ring.webp'),
     // NASA 3D Resources (see static/models/LICENSE.txt).
     models: {
-      voyager: asset('/models/voyager.glb'),
-      parker: asset('/models/parker.glb'),
-      'new-horizons': asset('/models/new-horizons.glb'),
-      'europa-clipper': asset('/models/europa-clipper.glb'),
-      juice: asset('/models/juice.glb')
+      voyager: asset('models/voyager.glb'),
+      parker: asset('models/parker.glb'),
+      'new-horizons': asset('models/new-horizons.glb'),
+      'europa-clipper': asset('models/europa-clipper.glb'),
+      juice: asset('models/juice.glb')
     },
-    dracoPath: asset('/draco/draco_decoder.wasm').replace(/draco_decoder\.wasm$/, '')
+    dracoPath: asset('draco/draco_decoder.wasm').replace(/draco_decoder\.wasm$/, '')
   };
 
   let container: HTMLDivElement;
